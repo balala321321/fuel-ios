@@ -265,6 +265,33 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
     .st .lb{font-size:9px}
 }
 
+
+/* ===== A4 报表 ===== */
+#a4view{position:fixed;inset:0;background:#E9EDF3;z-index:9999;overflow:auto;display:none;padding:14px 8px 84px}
+#a4view.sh{display:block}
+.a4sheet{background:#fff;width:210mm;max-width:100%;margin:0 auto;padding:12mm;box-shadow:0 4px 20px rgba(0,0,0,.15);color:#000;font-size:12px;line-height:1.5;min-height:180mm}
+.a4sheet h1{font-size:18px;text-align:center;letter-spacing:2px;margin-bottom:2px}
+.a4sheet .asub{text-align:center;font-size:11px;color:#333;margin-bottom:10px}
+.a4sheet .ameta{display:flex;justify-content:space-between;font-size:11px;margin:8px 0;padding-bottom:6px;border-bottom:1px solid #333}
+.a4sheet .asec{font-size:12px;font-weight:700;margin:12px 0 4px}
+.a4sheet table{width:100%;border-collapse:collapse;font-size:10.5px}
+.a4sheet th,.a4sheet td{border:1px solid #333;padding:3px 5px;text-align:center}
+.a4sheet th{background:#F2F2F2;font-weight:700}
+.a4sheet td.l{text-align:left}
+.a4sheet tr.atot td{font-weight:700;background:#FAFAFA}
+.a4sheet .asign{display:flex;justify-content:space-between;margin-top:22px;font-size:11px}
+.a4bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:10px;padding:10px 14px;background:#fff;border-top:1px solid #DDE3EC;z-index:10000}
+.a4bar button{flex:1;height:44px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
+.a4bar .p1{background:var(--primary);color:#fff}
+.a4bar .p2{background:#EEF2F8;color:#475569}
+@media print{
+ @page{size:A4;margin:12mm}
+ body{background:#fff!important}
+ .app,.mo,#navbar,.a4bar,#a4view .a4bar{display:none!important}
+ #a4view{position:static!important;inset:auto!important;display:block!important;overflow:visible!important;background:#fff!important;padding:0!important}
+ .a4sheet{box-shadow:none!important;margin:0!important;width:auto!important;max-width:none!important;min-height:0!important;padding:0!important}
+}
+
 /* ===== 小熊风格扩展样式 ===== */
 .navbar{position:relative;width:100%;flex:0 0 auto;height:calc(56px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid #E8EDF5;display:flex;align-items:flex-start;padding-top:6px;z-index:9000;box-shadow:0 -2px 12px rgba(15,23,42,.06)}
 .navbar .nv{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94A3B8;font-size:11px;cursor:pointer;padding:4px 0;user-select:none}
@@ -448,7 +475,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 <div class="vmenu" onclick="showPlate()"><span class="vic">&#128663;</span><div class="vmm"><div class="vmt">车辆信息</div><div class="vms">车牌号、驾驶员</div></div><span class="var">&#8250;</span></div>
 <div class="vmenu" onclick="showTarget()"><span class="vic">&#127919;</span><div class="vmm"><div class="vmt">油耗标准</div><div class="vms" id="mineTarget">&#8804;14.0 L/100km</div></div><span class="var">&#8250;</span></div>
 <div class="vmenu" onclick="showService()"><span class="vic">&#128736;</span><div class="vmm"><div class="vmt">保养提醒</div><div class="vms" id="mineServiceDesc">点击设置</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="exportCSV()"><span class="vic">&#128228;</span><div class="vmm"><div class="vmt">导出数据（CSV）</div><div class="vms">Excel 可直接打开</div></div><span class="var">&#8250;</span></div>
+<div class="vmenu" onclick="exportA4()"><span class="vic">&#128196;</span><div class="vmm"><div class="vmt">导出 A4 报表</div><div class="vms">按 A4 打印或存 PDF</div></div><span class="var">&#8250;</span></div>
 <div class="vmenu" onclick="showBackup()"><span class="vic">&#128190;</span><div class="vmm"><div class="vmt">备份</div><div class="vms">生成备份串，粘贴保存</div></div><span class="var">&#8250;</span></div>
 <div class="vmenu" onclick="showRestore()"><span class="vic">&#128229;</span><div class="vmm"><div class="vmt">恢复</div><div class="vms">粘贴备份串还原数据</div></div><span class="var">&#8250;</span></div>
 <div class="vmenu" onclick="openReport()"><span class="vic">&#128196;</span><div class="vmm"><div class="vmt">鹏源报表</div><div class="vms">按月出表、可打印</div></div><span class="var">&#8250;</span></div>
@@ -494,6 +521,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 <div><span class="mlb2">备注（可选）</span><input type="text" id="stNote" placeholder="例如 团油平台，10km内"></div>
 <div class="ma"><button class="bc2" onclick="closeStationForm()">取消</button><button class="bo" onclick="saveStation()">保存</button></div>
 </div>
+</div>
+</div>
+<div id="a4view">
+<div class="a4sheet" id="a4sheet"></div>
+<div class="a4bar">
+<button class="p1" onclick="printA4()">打印 / 存为 PDF</button>
+<button class="p2" onclick="closeA4()">关闭</button>
 </div>
 </div>
 <div class="mo" id="svcm">
@@ -646,10 +680,11 @@ var STORAGE_TOKEN_KEY='fuel_token',STORAGE_PLATE_KEY='fuel_plate',_authToken=loc
 function _defaultData(p){return{plateNumber:p||'',driverName:'',records:[],expenses:[],stations:[],createdAt:Date.now(),targetFuel:14,service:{lastMileage:0,intervalMajor:8000},salaryByMonth:{},reportTitle:DEFAULT_REPORT_TITLE};}
 function _normalizeData(d,p){if(!d||typeof d!=='object')d=_defaultData(p);if(!Array.isArray(d.records))d.records=[];if(typeof d.targetFuel!=='number'||d.targetFuel<1||d.targetFuel>100)d.targetFuel=14;if(!d.service||typeof d.service!=='object'){d.service={lastMileage:0,intervalMajor:8000};}if(!d.salaryByMonth||typeof d.salaryByMonth!=='object')d.salaryByMonth={};if(typeof d.reportTitle!=='string')d.reportTitle=DEFAULT_REPORT_TITLE;if(!Array.isArray(d.expenses))d.expenses=[];if(!Array.isArray(d.stations))d.stations=[];if(!d.createdAt)d.createdAt=Date.now();d.plateNumber=p||d.plateNumber||'';if(typeof d.driverName!=='string')d.driverName='';return d;}
 async function _apiFetch(u,o){o=o||{};o.headers=Object.assign({},o.headers,{'Authorization':'Bearer '+_authToken});if(o.body&&typeof o.body==='string')o.headers['Content-Type']='application/json';var r=await fetch(u,o);if(r.status===401){logoutLocal();throw new Error('登录已失效');}return r;}
-async function loadServerData(){var r=await _apiFetch('/api/data');if(!r.ok)throw new Error('加载数据失败');var d=await r.json();_cacheData=_normalizeData(d,_authPlate);return _cacheData;}
+async function loadServerData(){var r=await _apiFetch('/api/data');if(!r.ok)throw new Error('加载数据失败');var d=await r.json();_cacheData=_normalizeData(d,_authPlate);_loadedOk=true;return _cacheData;}
 function getData(){if(!_cacheData)_cacheData=_defaultData(_authPlate);return _cacheData;}
-function setData(d){_cacheData=d;clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){_saveTimer=null;_apiFetch('/api/data',{method:'PUT',body:JSON.stringify(_cacheData)}).then(function(r){if(!r.ok)throw new Error('服务器返回 '+r.status);}).catch(function(e){toast('⚠️ 保存失败：'+e.message);});},400);}
-window.addEventListener('beforeunload',function(){if(_saveTimer&&_cacheData){clearTimeout(_saveTimer);try{fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authToken},body:JSON.stringify(_cacheData),keepalive:true});}catch(e){}}});
+var _loadedOk=false;
+function setData(d){if(!_loadedOk){console.warn('数据未加载成功，本次不写回');_cacheData=d;return;}_cacheData=d;clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){_saveTimer=null;_apiFetch('/api/data',{method:'PUT',body:JSON.stringify(_cacheData)}).then(function(r){if(!r.ok)throw new Error('服务器返回 '+r.status);}).catch(function(e){toast('⚠️ 保存失败：'+e.message);});},400);}
+window.addEventListener('beforeunload',function(){if(!_loadedOk)return;if(_saveTimer&&_cacheData){clearTimeout(_saveTimer);try{fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authToken},body:JSON.stringify(_cacheData),keepalive:true});}catch(e){}}});
 function getRecords(){return getData().records||[];}
 function setRecords(r){var d=getData();d.records=r;setData(d);}
 function getPlate(){return getData().plateNumber||'';}
@@ -974,6 +1009,64 @@ function exportCSV(){
   var orig=renderAll;
   renderAll=function(){orig();try{buildStationOptions();refreshNewViews();}catch(e){}};
 })();
+
+/* ===== A4 报表导出（替代 CSV） ===== */
+function closeA4(){var v=document.getElementById('a4view');if(v)v.classList.remove('sh');}
+function printA4(){try{window.print();}catch(e){toast('当前环境不支持打印，请用手机浏览器打开后打印');}}
+function exportA4(){showA4Report();}
+function showA4Report(){
+  var sheet=document.getElementById('a4sheet');var view=document.getElementById('a4view');
+  if(!sheet||!view)return;
+  sheet.innerHTML=buildA4();
+  view.classList.add('sh');
+  view.scrollTop=0;
+}
+function buildA4(){
+  var mk=_viewMonthKey;
+  var rs=getRecords().filter(function(r){return getMonthKey(r.date)===mk;})
+      .sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
+  var ex=getExpenses().filter(function(e){return getMonthKey(e.date)===mk;})
+      .sort(function(a,b){return a.date.localeCompare(b.date);});
+  var fuelAmt=0,lit=0;rs.forEach(function(r){fuelAmt+=(r.amount||0);lit+=(r.liters||0);});
+  var exAmt=0;ex.forEach(function(e){exAmt+=(parseFloat(e.amount)||0);});
+  var mileage=0;
+  try{mileage=getMonthMileage(getRecords(),mk)||0;}catch(e){mileage=0;}
+  var avg='--';
+  try{var ga2=calcMonthAvg(getRecords(),mk);if(ga2!==null&&ga2>0)avg=fmtExactFuel(ga2);}catch(e){}
+  var fm={};try{fm=calcMonthFuel(rs)||{};}catch(e){}
+  var now=new Date();
+  var ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  var h='';
+  h+='<h1>油耗记账月度报表</h1>';
+  h+='<div class="asub">'+getMonthLabel(mk)+'　车辆/驾驶员费用明细表</div>';
+  h+='<div class="ameta"><span>车牌：'+escapeHtml(getPlate()||'—')+'　驾驶员：'+escapeHtml(getDriverName()||'—')+'</span><span>制表：'+ds+'</span></div>';
+  h+='<div class="asec">一、本月汇总</div>';
+  h+='<table><tr><th>加油次数</th><th>油费合计(元)</th><th>加油升数(L)</th><th>本月里程(km)</th><th>平均油耗(L/100km)</th></tr>';
+  h+='<tr><td>'+rs.length+'</td><td>'+money(fuelAmt)+'</td><td>'+tf(lit,2)+'</td><td>'+mileage+'</td><td>'+avg+'</td></tr></table>';
+  h+='<div class="asec">二、加油明细</div>';
+  h+='<table><tr><th style="width:26px">序号</th><th>日期</th><th>金额(元)</th><th>升数(L)</th><th>单价(元/L)</th><th>里程(km)</th><th>百公里油耗</th><th>加油站</th><th>优惠(元)</th></tr>';
+  if(rs.length===0){h+='<tr><td colspan="9">本月无加油记录</td></tr>';}
+  rs.forEach(function(r,i){
+    var price=r.liters>0?money(r.amount/r.liters):'—';
+    var fu='—';var f1=fm&&fm[r.id];
+    if(f1&&f1.fuel>0)fu=f1.fuel.toFixed(2);
+    h+='<tr><td>'+(i+1)+'</td><td>'+r.date+'</td><td>'+money(r.amount)+'</td><td>'+(r.liters>0?tf(r.liters,2):'—')+'</td><td>'+price+'</td><td>'+(r.mileage||'—')+'</td><td>'+fu+'</td><td class="l">'+escapeHtml(r.stationName||'—')+'</td><td>'+(r.saved>0?money(r.saved):'—')+'</td></tr>';
+  });
+  h+='<tr class="atot"><td colspan="2">合计</td><td>'+money(fuelAmt)+'</td><td>'+tf(lit,2)+'</td><td colspan="5"></td></tr></table>';
+  h+='<div class="asec">三、其他费用明细</div>';
+  h+='<table><tr><th style="width:26px">序号</th><th style="width:90px">日期</th><th style="width:100px">费用类型</th><th class="l">备注</th><th style="width:90px">金额(元)</th></tr>';
+  if(ex.length===0){h+='<tr><td colspan="5">本月无其他费用</td></tr>';}
+  ex.forEach(function(e,i){
+    h+='<tr><td>'+(i+1)+'</td><td>'+e.date+'</td><td>'+escapeHtml(e.type||'')+'</td><td class="l">'+escapeHtml(e.note||'')+'</td><td>'+money(e.amount)+'</td></tr>';
+  });
+  h+='<tr class="atot"><td colspan="4">合计</td><td>'+money(exAmt)+'</td></tr></table>';
+  h+='<div class="asec">四、本月总支出</div>';
+  h+='<table><tr><th>油费(元)</th><th>其他费用(元)</th><th>合计(元)</th></tr>';
+  h+='<tr><td>'+money(fuelAmt)+'</td><td>'+money(exAmt)+'</td><td>'+money(fuelAmt+exAmt)+'</td></tr></table>';
+  h+='<div class="asign"><span>司机签字：____________________</span><span>审核：____________________</span></div>';
+  return h;
+}
+
 switchView('home');
 
 initApp();
