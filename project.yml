@@ -1,0 +1,39 @@
+name: FuelApp
+options:
+  bundleIdPrefix: com.chen
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+targets:
+  FuelApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: FuelApp
+        excludes:
+          - www
+          - Assets.xcassets
+      - path: FuelApp/www
+        type: folder
+      - path: FuelApp/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.chen.fuelios
+        PRODUCT_NAME: FuelApp
+        INFOPLIST_FILE: FuelApp/Info.plist
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        TARGETED_DEVICE_FAMILY: "1,2"
+schemes:
+  FuelApp:
+    build:
+      targets:
+        FuelApp: all
+    run:
+      config: Release
