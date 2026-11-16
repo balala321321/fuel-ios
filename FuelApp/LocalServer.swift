@@ -7,6 +7,9 @@ final class LocalServer {
     private var listener: NWListener?
     var onReady: ((UInt16) -> Void)?
 
+    /// 固定端口：origin 保持不变，WKWebView 的 localStorage 才能跨启动沿用
+    static let fixedPort: UInt16 = 47821
+
     init(root: URL) {
         self.root = root
     }
@@ -14,6 +17,38 @@ final class LocalServer {
     func start() {
         do {
             let params = NWParameters.tcp
+            params.allowLocalEndpointReuse = true
+            guard let port = NWEndpoint.Port(rawValue: LocalServer.fixedPort) else {
+                startRandom()
+                return
+            }
+            let l = try NWListener(using: params, on: port)
+            listener = l
+            l.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
+                switch state {
+                case .ready:
+                    let p = self.listener?.port?.rawValue ?? LocalServer.fixedPort
+                    DispatchQueue.main.async { self.onReady?(p) }
+                case .failed, .cancelled:
+                    self.startRandom()
+                default:
+                    break
+                }
+            }
+            l.newConnectionHandler = { [weak self] conn in
+                self?.handle(conn)
+            }
+            l.start(queue: queue)
+        } catch {
+            startRandom()
+        }
+    }
+
+    private func startRandom() {
+        do {
+            let params = NWParameters.tcp
+            params.allowLocalEndpointReuse = true
             let l = try NWListener(using: params)
             listener = l
             l.stateUpdateHandler = { [weak self] state in
