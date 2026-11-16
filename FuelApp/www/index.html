@@ -74,7 +74,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 .plate .ph{opacity:.7;font-weight:400;font-size:12px}
 .storeStatus{max-width:600px;margin:4px auto 0;font-size:11px;text-align:right;opacity:.8;padding-right:4px}
 .storeStatus.warn{color:#FEF08A}
-.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 100px}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 20px}
 .content{max-width:480px;margin:0 auto}
 .month-badge-wrap {position:relative;display:inline-block;margin-bottom:10px;}
 .month-badge{display:inline-block;padding:6px 34px 6px 16px;background:var(--primary-light);color:var(--primary-dark);border-radius:20px;font-size:14px;font-weight:600;border:1.5px solid rgba(43,122,255,.25);outline:none;text-align:center;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 2px 8px rgba(43,122,255,0.08);transition:all .2s}
@@ -266,7 +266,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 }
 
 /* ===== 小熊风格扩展样式 ===== */
-.navbar{position:fixed;left:0;right:0;bottom:0;height:calc(56px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid #E8EDF5;display:flex;align-items:flex-start;padding-top:6px;z-index:9000;box-shadow:0 -2px 12px rgba(15,23,42,.06)}
+.navbar{position:relative;width:100%;flex:0 0 auto;height:calc(56px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid #E8EDF5;display:flex;align-items:flex-start;padding-top:6px;z-index:9000;box-shadow:0 -2px 12px rgba(15,23,42,.06)}
 .navbar .nv{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94A3B8;font-size:11px;cursor:pointer;padding:4px 0;user-select:none}
 .navbar .nv .ic{font-size:20px;line-height:1}
 .navbar .nv.act{color:var(--primary);font-weight:700}
@@ -457,7 +457,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 </div>
 </div>
 </div>
-</div>
 <div class="navbar" id="navbar">
 <div class="nv act" data-v="home" onclick="switchView('home')"><span class="ic">&#9981;</span><span>油耗</span></div>
 <div class="nv" data-v="expenses" onclick="switchView('expenses')"><span class="ic">&#128176;</span><span>费用</span></div>
@@ -494,6 +493,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 <div><span class="mlb2">优惠 (元/L)</span><input type="number" id="stDiscount" step="0.01" placeholder="例如 0.71"></div>
 <div><span class="mlb2">备注（可选）</span><input type="text" id="stNote" placeholder="例如 团油平台，10km内"></div>
 <div class="ma"><button class="bc2" onclick="closeStationForm()">取消</button><button class="bo" onclick="saveStation()">保存</button></div>
+</div>
 </div>
 </div>
 <div class="mo" id="svcm">
