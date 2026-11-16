@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<script>
+(function(){
+  var PK='fuel_offline_profile', DK='fuel_offline_data_';
+  function profile(){try{return JSON.parse(localStorage.getItem(PK)||'null')}catch(e){return null}}
+  function saveProfile(p){localStorage.setItem(PK,JSON.stringify(p))}
+  function dk(plate){return DK+encodeURIComponent(plate||'')}
+  function dflt(plate,name){return {plateNumber:plate,driverName:name||'',records:[],targetFuel:14,service:{lastMileage:0,intervalMajor:8000,intervalMinor:4000},salaryByMonth:{},reportTitle:'上海鹏源驾驶员车辆费用统计表'}}
+  function rj(o,s){return Promise.resolve(new Response(JSON.stringify(o),{status:s||200,headers:{'Content-Type':'application/json'}}))}
+  var of=window.fetch?window.fetch.bind(window):null;
+  window.fetch=function(input,init){
+    var url=(typeof input==='string')?input:((input&&input.url)||'');
+    var method=((init&&init.method)||(input&&input.method)||'GET').toUpperCase();
+    var path=url.replace(/^[a-z]+:\/\/[^\/]+/i,'').split('?')[0];
+    if(path==='/api/login'&&method==='POST'){
+      var body={};try{body=JSON.parse((init&&init.body)||'{}')}catch(e){}
+      var plate=String(body.plate||'').trim();
+      if(!plate)return rj({error:'请输入车牌号'},400);
+      var p=profile()||{};
+      if(!p.plate){p.plate=plate;saveProfile(p)}
+      return rj({token:'offline',plate:plate,driverName:p.driverName||''});
+    }
+    if(path==='/api/data'){
+      var pf=profile()||{}, pl=pf.plate||'';
+      if(method==='GET'){
+        var raw=localStorage.getItem(dk(pl)), d=null;
+        try{d=raw?JSON.parse(raw):null}catch(e){}
+        if(!d)d=dflt(pl,pf.driverName);
+        d.plateNumber=pl; d.driverName=pf.driverName||d.driverName||'';
+        return rj(d);
+      }
+      if(method==='PUT'){
+        var b={};try{b=JSON.parse((init&&init.body)||'{}')}catch(e){}
+        b.plateNumber=pl;
+        localStorage.setItem(dk(pl),JSON.stringify(b));
+        return rj({ok:true});
+      }
+    }
+    if(of)return of(input,init);
+    return rj({error:'not found'},404);
+  };
+  var oc=HTMLElement.prototype.click;
+  HTMLElement.prototype.click=function(){
+    var a=this;
+    try{
+      if(a&&a.tagName==='A'&&a.hasAttribute('download')&&a.href&&a.href.indexOf('blob:')===0&&window.AndroidBridge){
+        var name=a.getAttribute('download')||'export.txt';
+        fetch(a.href).then(function(r){return r.text()}).then(function(t){try{AndroidBridge.saveText(name,t)}catch(e){}});
+        return;
+      }
+    }catch(e){}
+    return oc.apply(this,arguments);
+  };
+  var _lp=null;
+  try{_lp=profile()}catch(e){}
+  window.__offlineProfile=_lp;
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>油耗记账</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--primary:#2B7AFF;--primary-dark:#1A5FCC;--primary-light:#F0F6FF;--bg:#F4F7FB;--card:#FFFFFF;--text:#1E293B;--text2:#64748B;--border:#E2E8F0;--radius:12px;--radius-sm:10px;--shadow:0 2px 6px rgba(0,0,0,0.03), 0 4px 12px rgba(43,122,255,0.05);--shadow-pressed:0 1px 3px rgba(0,0,0,0.06)}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.4}
+.app{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column}
+.hd{flex-shrink:0;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top, 0px));z-index:10;box-shadow:0 4px 14px rgba(43,122,255,0.2)}
+.hd .row{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:600px;margin:0 auto;min-height:36px}
+.hd .title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
+.plate{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;min-height:32px;user-select:none;transition:all .2s}
+.plate:active{background:rgba(255,255,255,.3);transform:scale(.98)}
+.plate .ph{opacity:.7;font-weight:400;font-size:12px}
+.storeStatus{max-width:600px;margin:4px auto 0;font-size:11px;text-align:right;opacity:.8;padding-right:4px}
+.storeStatus.warn{color:#FEF08A}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 20px}
+.content{max-width:480px;margin:0 auto}
+.month-badge-wrap {position:relative;display:inline-block;margin-bottom:10px;}
+.month-badge{display:inline-block;padding:6px 34px 6px 16px;background:var(--primary-light);color:var(--primary-dark);border-radius:20px;font-size:14px;font-weight:600;border:1.5px solid rgba(43,122,255,.25);outline:none;text-align:center;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 2px 8px rgba(43,122,255,0.08);transition:all .2s}
+.month-badge:active {background:var(--primary);color:#fff;box-shadow:none}
+.month-badge-wrap::after {content:'▼';position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--primary);pointer-events:none}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0}
+.st{background:var(--card);border-radius:var(--radius-sm);padding:10px 4px;box-shadow:var(--shadow);text-align:center;border:1px solid rgba(43,122,255,.06);display:flex;flex-direction:column;justify-content:center;min-height:64px;transition:transform .2s}
+.st:active{transform:scale(.97)}
+.st .lb{font-size:10px;color:var(--text2);font-weight:500;margin-bottom:4px;white-space:nowrap}
+.st .vl{font-size:14px;font-weight:700;color:var(--primary-dark);line-height:1.2;letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st .vl .u{font-size:9px;font-weight:400;color:var(--primary-dark);opacity:.75;letter-spacing:0}
+.svc-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s}
+.svc-card:active{transform:scale(.98)}
+.svc-card .sc-left {display:flex; align-items:center; gap:12px;flex:1}
+.svc-card .sc-icon {font-size:26px}
+.svc-card .sc-title {font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px}
+.svc-card .sc-desc {font-size:14px; color:var(--text); font-weight:600; line-height:1.5}
+.svc-card .sc-status {font-size:14px; font-weight:700; padding:5px 12px; border-radius:14px; background:var(--primary-light); color:var(--primary-dark);white-space:nowrap;margin-left:10px}
+.svc-card .sc-status.warn {background:#FEF3C7; color:#D97706}
+.svc-card .sc-status.danger {background:#FEE2E2; color:#DC2626}
+.salary-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s}
+.salary-card:active{transform:scale(.98)}
+.salary-card .sc-left {display:flex; align-items:center; gap:12px;flex:1}
+.salary-card .sc-icon {font-size:26px}
+.salary-card .sc-title {font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px}
+.salary-card .sc-desc {font-size:14px; color:var(--text); font-weight:600; line-height:1.5}
+.salary-card .sc-status {font-size:14px; font-weight:700; padding:5px 12px; border-radius:14px; background:#FEF3C7; color:#D97706;white-space:nowrap;margin-left:10px}
+.tg{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;flex-direction:column}
+.tg .tt{font-size:14px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.tg .tr{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px dashed #F1F5F9}
+.tg .tr:last-child{border-bottom:none}
+.tg .tr .lb{color:var(--text2)}
+.tg .tr .vl{font-weight:600}
+.tg .tr .vl.g{color:#059669;font-weight:700}
+.tg .tr .vl.r{color:#DC2626;font-weight:700}
+.tg .tr.ed{cursor:pointer;transition:background .2s;border-radius:6px}
+.tg .tr.ed:active{background:#F8FAFC}
+.tg .tst{font-size:12px;font-weight:600;text-align:center;padding:8px 0;border-radius:8px;background:var(--primary-light);color:var(--primary-dark);margin-top:8px}
+.tg .tst.ok{background:#DCFCE7;color:#166534}
+.tg .tst.bad{background:#FEE2E2;color:#991B1B}
+.fc{background:var(--card);border-radius:var(--radius);padding:16px 14px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06)}
+.fc .ft{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;color:var(--primary)}
+.fg{margin-bottom:10px}
+.fg label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:5px}
+.fg input{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-weight:500;-webkit-appearance:none;appearance:none;transition:all .2s}
+.fg input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(43,122,255,.1);background:#fff}
+.fg input::placeholder{color:#94A3B8;font-weight:400;font-size:15px}
+.date-display{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--text);font-weight:500;transition:all .2s}
+.date-display:active{background:#EFF6FF;border-color:var(--primary)}
+.date-display::after{content:'📅';font-size:18px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fp{margin-top:10px;padding:10px 14px;background:var(--primary-light);border-radius:8px;font-size:13px;text-align:center;color:var(--primary-dark);font-weight:600;min-height:38px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 10px}
+.fp .em{font-weight:400;color:var(--text2);font-size:13px}
+.bs{width:100%;height:48px;background:linear-gradient(135deg, var(--primary), var(--primary-dark));color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;margin-top:10px;box-shadow:0 4px 12px rgba(43,122,255,.25);transition:all .2s}
+.bs:active{transform:scale(.98);box-shadow:var(--shadow-pressed);background:var(--primary-dark)}
+.tabs{display:flex;margin-top:14px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:1px solid rgba(43,122,255,.06)}
+.tb{flex:1;padding:13px 0;text-align:center;font-size:14px;font-weight:600;background:transparent;border:none;cursor:pointer;color:var(--text2);position:relative;transition:all .2s}
+.tb.act{color:var(--primary);background:var(--primary-light)}
+.tb.act::after{content:'';position:absolute;bottom:0;left:25%;width:50%;height:3px;background:var(--primary);border-radius:3px 3px 0 0}
+.tp{display:none;margin-top:12px}
+.tp.act{display:block}
+.rl{display:flex;flex-direction:column;gap:8px}
+.month-header{margin-top:0;margin-bottom:0;padding:12px 14px;background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 12px rgba(43,122,255,.2);cursor:pointer;user-select:none;transition:all .2s}
+.month-header:active{transform:scale(.98)}
+.month-header .mh-left{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700}
+.month-header .mh-right{display:flex;align-items:center;gap:6px;font-size:11px;opacity:.95}
+.month-header .arrow{font-size:12px;transition:transform .2s;display:inline-block}
+.month-header.collapsed .arrow{transform:rotate(-90deg)}
+.month-body{display:flex;flex-direction:column;gap:8px;padding-top:4px}
+.month-body.hidden{display:none}
+.ri{background:var(--card);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);border-left:4px solid var(--primary);transition:transform .2s}
+.ri:active{transform:scale(.98)}
+.ri .tr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.ri .dt{font-size:14px;font-weight:600}
+.ri .ac{display:flex;align-items:center;gap:4px}
+.ri .ac button{background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;line-height:1;color:#CBD5E1;transition:color .2s}
+.ri .ac button:active{color:var(--primary)}
+.ri .fb{background:var(--primary-light);color:var(--primary-dark);padding:2px 10px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.ri .fb.na{background:#F1F5F9;color:var(--text2);font-weight:400}
+.ri .dl{font-size:12px;color:var(--text2);margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 12px;line-height:1.5}
+.ri .dl .lb{color:var(--text2)}
+.ri .dl .vl{color:var(--text);font-weight:600}
+.es{text-align:center;padding:40px 16px;color:var(--text2);background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+.es .bi{font-size:40px;display:block;margin-bottom:10px}
+.es .ht{font-size:12px;opacity:.7;margin-top:6px}
+.ml{display:flex;flex-direction:column;gap:10px}
+.mi{background:var(--card);border-radius:var(--radius-sm);padding:14px 16px;box-shadow:var(--shadow);border-left:4px solid var(--primary)}
+.mi .mlb{font-size:15px;font-weight:700;margin-bottom:10px}
+.mi .ms{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.mi .ms .sl{font-size:13px;color:var(--text2);display:flex;justify-content:space-between;border-bottom:1px dashed #F1F5F9;padding:4px 0}
+.mi .ms .sl .nm{font-weight:600;color:var(--text)}
+.mi .ms .sl .hn{font-weight:700;color:var(--primary-dark)}
+.mi .ms .sl .fe{color:#059669;font-weight:700;font-size:13px}
+.ba{margin-top:16px;display:flex;justify-content:center;gap:10px;padding-bottom:10px;flex-wrap:wrap}
+.ba .bc{background:none;border:none;font-size:12px;color:var(--text2);padding:6px 12px;cursor:pointer;opacity:.6;text-decoration:underline}
+.ba .bp{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(43,122,255,.2);transition:all .2s}
+.ba .bp:active{transform:scale(.96)}
+.ba .bx{background:#059669;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(5,150,105,.2);transition:all .2s}
+.ba .bx:active{transform:scale(.96)}
+.ba .br{background:#F59E0B;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,.2);transition:all .2s}
+.ba .br:active{transform:scale(.96)}
+.tt2{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(15,23,42,.85);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;z-index:99999;opacity:0;transition:all .3s cubic-bezier(0.175, 0.885, 0.32, 1.275);pointer-events:none;max-width:90%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.15)}
+.tt2.sh{opacity:1;transform:translateX(-50%) translateY(0)}
+.mo{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);z-index:999999;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.mo.sh{display:flex}
+.mb{background:#fff;border-radius:16px;padding:24px 20px 20px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,0.2)}
+.mb input{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;text-align:center;margin-bottom:12px;font-weight:500}
+.mb input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(43,122,255,.1);background:#fff}
+.mb textarea{width:100%;min-height:160px;padding:12px 14px;font-size:13px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-family:monospace;margin-bottom:12px;resize:vertical}
+.mb textarea:focus{border-color:var(--primary);background:#fff}
+.mb .ma{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.mb .ma button{flex:1;min-width:80px;height:44px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
+.mb .ma button:active{transform:scale(.97)}
+.mb .ma .bc2{background:#F1F5F9;color:var(--text2)}
+.mb .ma .bo{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(43,122,255,.25)}
+.mb .ma .bp2{background:#059669;color:#fff}
+.mb .mtitle{font-size:17px;font-weight:700;text-align:center;color:var(--primary);margin-bottom:14px}
+.mb .mhint{font-size:12px;color:var(--text2);margin-bottom:12px;text-align:center;line-height:1.6}
+.ts{width:100%;height:180px;font-size:18px;font-weight:700;border:1.5px solid var(--primary);border-radius:8px;background:#FAFBFF;text-align:center;padding:8px;color:var(--primary-dark);outline:none}
+.tt3{font-size:12px;color:var(--text2);text-align:center;margin-top:6px}
+.tc{font-size:14px;font-weight:600;color:var(--primary);text-align:center;margin-top:10px}
+.pw{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
+#dp .mb { max-width: 360px; padding: 20px 16px; }
+.dp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-weight: 700; font-size: 16px; color: var(--primary); }
+.dp-header button { background: var(--primary-light); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; transition: all .1s; }
+.dp-header button:active { background: var(--primary); color: #fff; transform: scale(.9); }
+.dp-header span { flex: 1; text-align: center; letter-spacing: 1px; }
+.dp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dp-grid div { height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; background: #F8FAFC; color: var(--text); border: 1px solid #E2E8F0; transition: all .1s; }
+.dp-grid div:active { transform: scale(.92); }
+.dp-grid div.selected { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(43,122,255,0.3); }
+.dp-grid div.empty { background: transparent; border: none; cursor: default; }
+.salary-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.salary-form .full { grid-column: span 2; }
+.salary-form label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 4px; display: block; }
+.salary-form input { width: 100%; height: 40px; padding: 0 10px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 6px; background: #FAFBFF; outline: none; font-weight: 600; text-align: center; }
+.salary-form input:focus { border-color: var(--primary); background: #fff; }
+.salary-form .sub-title { grid-column: span 2; font-size: 14px; font-weight: 700; color: var(--primary); margin-top: 10px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
+.salary-total { grid-column: span 2; background: var(--primary-light); padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px; font-size: 15px; font-weight: 700; color: var(--primary-dark); }
+.salary-total .num { font-size: 22px; font-weight: 800; color: var(--primary); }
+.ot-toggle { display: flex; gap: 6px; margin-bottom: 4px; }
+.ot-toggle button { flex: 1; height: 32px; border: 1.5px solid var(--border); background: #FAFBFF; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text2); font-weight: 600; transition: all .2s; }
+.ot-toggle button.act { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ot-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sh2{width:700px;background:#fff;color:#000;font-family:"PingFang SC","Microsoft YaHei","SimSun",serif}
+.st2{text-align:center;font-size:18px;font-weight:700;letter-spacing:4px;padding:10px 0;color:#000}
+.sm{font-size:13px;font-weight:700;padding:4px 0;color:#000}
+.sh2 table{width:100%;border-collapse:collapse;table-layout:fixed}
+.sh2 table.it{font-size:12px}
+.sh2 table.it td{border:1px solid #000;padding:4px 6px;height:24px;text-align:center;color:#000}
+.sh2 table.it td.lb{background:#f5f5f5;font-weight:600;width:11%;white-space:nowrap}
+.sh2 table.it td.vl{width:14%;font-weight:500}
+.sh2 table.mt{font-size:11px}
+.sh2 table.mt th,.sh2 table.mt td{border:1px solid #000;padding:2px;height:20px;text-align:center;color:#000;word-break:keep-all;overflow:hidden}
+.sh2 table.mt th{font-weight:700;font-size:10px;background:#f5f5f5;height:30px;line-height:1.15}
+.sh2 table.mt tr.tot td{font-weight:700;background:#f0f0f0}
+.sh2 table.mt tr.tot td.gt{text-align:center;background:#f0f0f0}
+.sch{text-align:center;font-size:11px;color:#999;margin-top:4px}
+.report-month-selector{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--primary-light);border-radius:10px;margin-bottom:14px;border:1.5px solid var(--primary)}
+.report-month-selector label{font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap}
+.report-month-selector select{flex:1;height:40px;padding:0 10px;font-size:14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;cursor:pointer;text-align:center;outline:none}
+.report-title-input{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--primary-light);border-radius:10px;margin-bottom:14px;border:1.5px solid var(--primary)}
+.report-title-input label{font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap}
+.report-title-input input{flex:1;min-width:0;height:40px;padding:0 10px;font-size:14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-weight:600;color:var(--text);outline:none;margin-bottom:0;text-align:left}
+.report-title-input input:focus{border-color:var(--primary)}
+.pc{display:none}
+@media print{
+    @page{size:A4 portrait;margin:0}
+    body *{visibility:hidden}
+    .pc,.pc *{visibility:visible}
+    .pc{display:block!important;position:absolute;top:0;left:0;width:100%;background:#fff}
+    .a4{width:210mm;min-height:297mm;padding:10mm 10mm 8mm 10mm;box-sizing:border-box;page-break-after:always;background:#fff;color:#000;font-family:"PingFang SC","Microsoft YaHei","SimSun",serif;display:flex;flex-direction:column}
+    .a4:last-child{page-break-after:auto}
+    .a4 .st2{text-align:center;font-size:18pt;font-weight:700;letter-spacing:4px;margin-bottom:4mm;color:#000}
+    .a4 .sm{font-size:11pt;font-weight:700;margin-bottom:2mm}
+    .a4 table.it{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:0}
+    .a4 table.it td{border:1px solid #000;padding:1.5mm 1mm;height:7mm;text-align:center;box-sizing:border-box}
+    .a4 table.it td.lb{background:#f5f5f5;font-weight:600;white-space:nowrap}
+    .a4 table.mt{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed}
+    .a4 table.mt th,.a4 table.mt td{border:1px solid #000;padding:.5mm;height:6mm;text-align:center;box-sizing:border-box;word-break:keep-all;overflow:hidden}
+    .a4 table.mt th{background:#f5f5f5;font-weight:700;font-size:9pt;line-height:1.15;height:9mm}
+    .a4 table.mt tr.tot td{font-weight:700;background:#f0f0f0}
+}
+@media(max-width:400px){
+    .tg .tr{font-size:12px}
+    .stats{gap:6px}
+    .st .vl{font-size:13px}
+    .st .lb{font-size:9px}
+}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);z-index:9999999;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+    <div style="text-align:center;font-size:22px;font-weight:800;color:#2B7AFF;margin-bottom:6px">⛽ 油耗记账</div>
+    <div style="text-align:center;font-size:12px;color:#64748B;margin-bottom:22px">请输入车牌号登录</div>
+    <input type="text" id="loginPlate" placeholder="车牌号（如 沪A88888）" autocomplete="username" style="width:100%;height:46px;padding:0 14px;font-size:16px;border:1.5px solid #E2E8F0;border-radius:8px;background:#FAFBFF;outline:none;margin-bottom:14px;text-align:center;font-weight:600">
+    <div id="loginError" style="color:#DC2626;font-size:13px;text-align:center;margin-bottom:10px;min-height:18px"></div>
+    <button id="loginBtn" style="width:100%;height:48px;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(43,122,255,.25)">登 录</button>
+    <div style="text-align:center;font-size:11px;color:#94A3B8;margin-top:14px">车牌由管理员登记后方可登录</div>
+  </div>
+</div>
+
+<div class="app">
+<header class="hd">
+<div class="row">
+<div class="title"><span>⛽</span>油耗记账</div>
+<div class="plate" id="pd" onclick="showPlate()"><span id="pt" class="ph">车牌</span><span style="font-size:12px;opacity:.8">✎</span></div>
+</div>
+<div class="storeStatus" id="storeStatus">💾 连接服务器中...</div>
+</header>
+<div class="scroll" id="sa">
+<div class="content">
+<div style="text-align:center;">
+    <div class="month-badge-wrap">
+        <select id="viewMonthBadge" class="month-badge" onchange="changeViewMonth(this.value)"></select>
+    </div>
+</div>
+<div class="stats">
+<div class="st"><div class="lb">本月次数</div><div class="vl" id="sc">0</div></div>
+<div class="st"><div class="lb">本月油费</div><div class="vl" id="sam">0 <span class="u">元</span></div></div>
+<div class="st"><div class="lb">本月升数</div><div class="vl" id="sli">0 <span class="u">L</span></div></div>
+<div class="st"><div class="lb">本月里程</div><div class="vl" id="stm">0 <span class="u">km</span></div></div>
+<div class="st"><div class="lb">本月油耗</div><div class="vl" id="sav">--</div></div>
+<div class="st"><div class="lb">期末里程</div><div class="vl" id="sem">0 <span class="u">km</span></div></div>
+</div>
+<div class="svc-card" onclick="showService()">
+    <div class="sc-left">
+        <span class="sc-icon">🛠️</span>
+        <div>
+            <div class="sc-title">保养提醒</div>
+            <div class="sc-desc" id="svcDesc">点击设置保养参数</div>
+        </div>
+    </div>
+    <div class="sc-status" id="svcStatus">设置</div>
+</div>
+<div class="salary-card" onclick="showSalary()">
+    <div class="sc-left">
+        <span class="sc-icon">💰</span>
+        <div>
+            <div class="sc-title">工资结算</div>
+            <div class="sc-desc" id="salaryDesc">点击查看本月工资明细</div>
+        </div>
+    </div>
+    <div class="sc-status" id="salaryStatus">查看</div>
+</div>
+<div class="tg">
+<div class="tt">🎯 公司标准油耗对比</div>
+<div class="tr ed" onclick="showTarget()">
+<span class="lb">公司标准 <span style="font-size:11px;color:var(--primary);">（点击修改）</span></span>
+<span class="vl" id="sfd">≤ 14.0 L/100km</span>
+</div>
+<div class="tr"><span class="lb">当前平均油耗</span><span class="vl" id="tca">--</span></div>
+<div class="tr"><span class="lb">与标准差距</span><span class="vl" id="tgp">--</span></div>
+<div class="tr"><span class="lb">还需跑</span><span class="vl" id="tnk">--</span></div>
+<div class="tst" id="tst">数据不足</div>
+</div>
+<div class="fc">
+<div class="ft">📝 添加加油记录</div>
+<div class="fg">
+    <label>📅 日期</label>
+    <div class="date-display" id="dateDisplay" onclick="openDatePicker()">2026年01月01日</div>
+</div>
+<div class="fr">
+<div class="fg"><label>💰 油费 (元)</label><input type="number" id="ia" placeholder="可选" step="0.01"></div>
+<div class="fg"><label>⛽ 升数 (L)</label><input type="number" id="il" placeholder="可选" step="0.01"></div>
+</div>
+<div class="fg"><label>📟 当前里程 (km)</label><input type="number" id="im" placeholder="可选" step="1"></div>
+<div class="fp" id="fp"><span class="em">至少填一项，自动计算油耗（需里程+升数）</span></div>
+<button class="bs" id="bSave">✓ 保存记录</button>
+</div>
+<div class="tabs">
+<button class="tb act" data-t="r">📋 历史记录</button>
+<button class="tb" data-t="s">📊 月度汇总</button>
+</div>
+<div class="tp act" id="pr"><div class="rl" id="rl"></div></div>
+<div class="tp" id="ps"><div class="ml" id="ml"></div></div>
+<div class="ba">
+<button class="bp" onclick="openReport()">📄 鹏源报表</button>
+<button class="bx" onclick="showBackup()">📤 备份</button>
+<button class="br" onclick="showRestore()">📥 恢复</button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="mo" id="svcm">
+    <div class="mb">
+        <div class="mtitle">🛠️ 保养参数设置</div>
+        <div class="tt3" style="margin-bottom:14px">请输入上次保养的里程和保养周期</div>
+        <label style="font-size:13px;font-weight:600;color:var(--primary);display:block;margin-bottom:6px">上次保养时的里程 (km)：</label>
+        <input type="number" id="svcLastMileage" placeholder="例如：38000" step="1">
+        <label style="font-size:13px;font-weight:600;color:var(--primary);display:block;margin-bottom:6px">保养间隔 (km)：</label>
+        <input type="number" id="svcMajorInterval" placeholder="例如：8000" step="1" value="8000">
+        <div class="ma"><button class="bc2" onclick="closeService()">取消</button><button class="bo" onclick="confirmService()">保存设置</button></div>
+    </div>
+</div>
+
+<div class="mo" id="salarym">
+    <div class="mb" style="max-width: 420px; padding: 20px 16px;">
+        <div class="mtitle">💰 工资结算明细</div>
+        <div class="tt3" style="margin-bottom:12px" id="salaryMonthLabel"></div>
+        <div class="salary-form">
+            <div><label>基本工资 (元)</label><input type="number" id="sBasic" value="4500" step="1" oninput="calcSalaryTotal()"></div>
+            <div><label>住宿费 (元)</label><input type="number" id="sHousing" value="1000" step="1" oninput="calcSalaryTotal()"></div>
+            <div><label>洗车费 (元)</label><input type="number" id="sWash" value="150" step="1" oninput="calcSalaryTotal()"></div>
+            <div><label>保养费 (元)</label><input type="number" id="sMaintenance" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
+            <div><label>停车费 (元)</label><input type="number" id="sParking" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
+            <div><label>餐饮补助 (元)</label><input type="number" id="sMeal" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
+            <div><label>其他补助 (元)</label><input type="number" id="sOtherSubsidy" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
+            <div class="sub-title">平时加班</div>
+            <div class="full">
+                <div class="ot-toggle" id="otToggleRegular">
+                    <button type="button" class="act" onclick="setOtType('regular','day')">按天</button>
+                    <button type="button" onclick="setOtType('regular','hour')">按小时</button>
+                </div>
+            </div>
+            <div class="full ot-inputs" id="otInputsRegular">
+                <div><label id="otRegLabel">天数</label><input type="number" id="sOtCount" value="0" step="1" oninput="calcSalaryTotal()"></div>
+                <div><label id="otRegRateLabel">单价 (元/天)</label><input type="number" id="sOtRate" value="200" step="1" oninput="calcSalaryTotal()"></div>
+            </div>
+            <div class="sub-title">节假日加班</div>
+            <div class="full">
+                <div class="ot-toggle" id="otToggleHoliday">
+                    <button type="button" class="act" onclick="setOtType('holiday','day')">按天</button>
+                    <button type="button" onclick="setOtType('holiday','hour')">按小时</button>
+                </div>
+            </div>
+            <div class="full ot-inputs" id="otInputsHoliday">
+                <div><label id="otHolLabel">天数</label><input type="number" id="sHolCount" value="0" step="1" oninput="calcSalaryTotal()"></div>
+                <div><label id="otHolRateLabel">单价 (元/天)</label><input type="number" id="sHolRate" value="200" step="1" oninput="calcSalaryTotal()"></div>
+            </div>
+            <div class="full"><label>节假日倍数</label><input type="number" id="sHolMulti" value="3" step="1" oninput="calcSalaryTotal()"></div>
+            <div class="sub-title">自动计算</div>
+            <div class="full"><label>本月里程 (km)</label><input type="text" id="sMileage" value="0" readonly style="background:#F1F5F9;color:var(--text2);"></div>
+            <div class="full"><label>公里提成 (0.25元/km)</label><input type="text" id="sMileageComm" value="0 元" readonly style="background:#F1F5F9;color:var(--text2);"></div>
+            <div class="salary-total">实发总计：<br><span class="num" id="sTotal">0.00</span> 元</div>
+        </div>
+        <div class="ma"><button class="bc2" onclick="closeSalary()">取消</button><button class="bo" onclick="confirmSalary()">保存工资单</button></div>
+    </div>
+</div>
+
+<div class="mo" id="dp">
+    <div class="mb">
+        <div class="mtitle">选择日期</div>
+        <div class="dp-header">
+            <button onclick="changeDPYear(-1)">«</button>
+            <button onclick="changeDPMonth(-1)">‹</button>
+            <span id="dpLabel"></span>
+            <button onclick="changeDPMonth(1)">›</button>
+            <button onclick="changeDPYear(1)">»</button>
+        </div>
+        <div class="dp-grid" id="dpGrid"></div>
+        <div class="ma"><button class="bc2" onclick="closeDatePicker()">取消</button></div>
+    </div>
+</div>
+
+<div class="mo" id="pm">
+<div class="mb">
+<div class="mtitle">🚗 车牌与数据恢复</div>
+<div class="tt3" style="margin-bottom:12px">车牌由管理员统一分配，如需更换请联系管理员</div>
+<input type="text" id="pi" readonly style="background:#F1F5F9;color:var(--text2);" maxlength="20">
+<div class="mhint" style="text-align:left; margin-top:6px; margin-bottom:6px; font-weight:600; color:var(--text);">📥 如需恢复旧版备份数据（粘贴到下方）：</div>
+<textarea id="piBackupData" placeholder="粘贴备份字符串（如果不需要恢复，留空即可）" style="min-height:100px; font-size:12px;"></textarea>
+<div class="ma"><button class="bc2" onclick="closePlate()">关闭</button><button class="bo" onclick="confirmPlate()">确认恢复</button></div>
+</div>
+</div>
+
+<div class="mo" id="em">
+<div class="mb">
+<div class="mtitle">✎ 编辑记录</div>
+<input type="date" id="ed" value="">
+<input type="number" id="ea" placeholder="油费 (元)" step="0.01">
+<input type="number" id="el" placeholder="升数 (L)" step="0.01">
+<input type="number" id="ei" placeholder="里程 (km)" step="1">
+<div class="ma"><button class="bc2" onclick="closeEdit()">取消</button><button class="bo" onclick="saveEdit()">保存</button></div>
+</div>
+</div>
+
+<div class="mo" id="tm">
+<div class="mb">
+<div class="mtitle">🎯 设置公司标准油耗</div>
+<div class="tt3" style="margin-bottom:14px">范围 1.0 ~ 100.0，每次 0.1</div>
+<label style="font-size:14px;font-weight:600;color:var(--primary);display:block;margin-bottom:8px">公司标准油耗（L/100km）：</label>
+<select class="ts" id="tsel" size="7"></select>
+<div class="tc" id="tch">当前：14.0 L/100km</div>
+<div class="ma"><button class="bc2" onclick="closeTarget()">取消</button><button class="bo" onclick="confirmTarget()">确认</button></div>
+</div>
+</div>
+
+<div class="mo" id="rm">
+<div class="mb" style="max-width:96vw;max-height:90vh;overflow-y:auto;padding:16px">
+<div class="report-month-selector">
+<label>📅 选择月份：</label>
+<select id="reportMonthSelect" onchange="switchReportMonth()"></select>
+</div>
+<div class="report-title-input">
+<label>✏️ 报表标题：</label>
+<input type="text" id="reportTitleInput" placeholder="输入公司名称/报表标题" oninput="onReportTitleInput()" maxlength="60">
+</div>
+<div id="rc"></div>
+<div class="ma">
+<button class="bc2" onclick="closeReport()">关闭</button>
+<button class="bp2" onclick="printReport()">🖨️ 打印当前显示</button>
+<button class="bo" onclick="copyReport()">📋 复制内容</button>
+</div>
+</div>
+</div>
+
+<div class="mo" id="bkm">
+<div class="mb">
+<div class="mtitle">📤 备份数据</div>
+<div class="mhint">复制下面全部内容保存好，可在新版"📥 恢复"或后台"查看数据→复制备份"中导入</div>
+<textarea id="bkText" readonly></textarea>
+<div class="ma"><button class="bc2" onclick="closeBackup()">关闭</button><button class="bo" onclick="copyBackup()">📋 复制全部</button></div>
+</div>
+</div>
+
+<div class="mo" id="rsm">
+<div class="mb">
+<div class="mtitle">📥 恢复数据</div>
+<div class="mhint">把之前备份的内容粘贴到下面，然后点"恢复"</div>
+<textarea id="rsText" placeholder="粘贴备份内容..."></textarea>
+<div class="ma"><button class="bc2" onclick="closeRestore()">取消</button><button class="bp2" onclick="doRestore()">确认恢复</button></div>
+</div>
+</div>
+
+<div class="pc" id="pc"></div>
+<div class="tt2" id="tt2"></div>
+
+<script>
+var STORAGE_TOKEN_KEY='fuel_token',STORAGE_PLATE_KEY='fuel_plate',_authToken=localStorage.getItem(STORAGE_TOKEN_KEY)||'',_authPlate=localStorage.getItem(STORAGE_PLATE_KEY)||'',_cacheData=null,_saveTimer=null,_storeMode='server',DEFAULT_REPORT_TITLE='上海鹏源驾驶员车辆费用统计表';
+function _defaultData(p){return{plateNumber:p||'',driverName:'',records:[],targetFuel:14,service:{lastMileage:0,intervalMajor:8000},salaryByMonth:{},reportTitle:DEFAULT_REPORT_TITLE};}
+function _normalizeData(d,p){if(!d||typeof d!=='object')d=_defaultData(p);if(!Array.isArray(d.records))d.records=[];if(typeof d.targetFuel!=='number'||d.targetFuel<1||d.targetFuel>100)d.targetFuel=14;if(!d.service||typeof d.service!=='object'){d.service={lastMileage:0,intervalMajor:8000};}if(!d.salaryByMonth||typeof d.salaryByMonth!=='object')d.salaryByMonth={};if(typeof d.reportTitle!=='string')d.reportTitle=DEFAULT_REPORT_TITLE;d.plateNumber=p||d.plateNumber||'';if(typeof d.driverName!=='string')d.driverName='';return d;}
+async function _apiFetch(u,o){o=o||{};o.headers=Object.assign({},o.headers,{'Authorization':'Bearer '+_authToken});if(o.body&&typeof o.body==='string')o.headers['Content-Type']='application/json';var r=await fetch(u,o);if(r.status===401){logoutLocal();throw new Error('登录已失效');}return r;}
+async function loadServerData(){var r=await _apiFetch('/api/data');if(!r.ok)throw new Error('加载数据失败');var d=await r.json();_cacheData=_normalizeData(d,_authPlate);return _cacheData;}
+function getData(){if(!_cacheData)_cacheData=_defaultData(_authPlate);return _cacheData;}
+function setData(d){_cacheData=d;clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){_saveTimer=null;_apiFetch('/api/data',{method:'PUT',body:JSON.stringify(_cacheData)}).then(function(r){if(!r.ok)throw new Error('服务器返回 '+r.status);}).catch(function(e){toast('⚠️ 保存失败：'+e.message);});},400);}
+window.addEventListener('beforeunload',function(){if(_saveTimer&&_cacheData){clearTimeout(_saveTimer);try{fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authToken},body:JSON.stringify(_cacheData),keepalive:true});}catch(e){}}});
+function getRecords(){return getData().records||[];}
+function setRecords(r){var d=getData();d.records=r;setData(d);}
+function getPlate(){return getData().plateNumber||'';}
+function setPlate(p){var d=getData();d.plateNumber=p;setData(d);}
+function getDriverName(){return getData().driverName||'';}
+function getTarget(){var d=getData();var v=parseFloat(d.targetFuel);if(isNaN(v)||v<1||v>100)return 14;return Math.round(v*10)/10;}
+function setTarget(v){var d=getData();d.targetFuel=Math.round(parseFloat(v)*10)/10;setData(d);}
+function getReportTitle(){var d=getData();var t=(d.reportTitle||'').trim();return t||DEFAULT_REPORT_TITLE;}
+function setReportTitle(v){var d=getData();d.reportTitle=(v==null?'':String(v)).trim();setData(d);}
+function getServiceSettings(){var d=getData();if(!d.service)d.service={lastMileage:0,intervalMajor:8000};return d.service;}
+function setServiceSettings(s){var d=getData();d.service=s;setData(d);}
+function getSalarySettings(m){var d=getData();if(!d.salaryByMonth)d.salaryByMonth={};if(!d.salaryByMonth[m])d.salaryByMonth[m]={basic:4500,housing:1000,wash:150,maintenance:0,parking:0,meal:0,otherSubsidy:0,otType:'day',otCount:0,otRate:200,holType:'day',holCount:0,holRate:200,holMulti:3};return d.salaryByMonth[m];}
+function setSalarySettings(m,s){var d=getData();if(!d.salaryByMonth)d.salaryByMonth={};d.salaryByMonth[m]=s;setData(d);}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmtDate(s){if(!s)return '';var p=s.split('-');return p[0]+'-'+p[1]+'-'+p[2];}
+function fmtDateCN(s){if(!s)return '';var p=s.split('-');return p[0]+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日';}
+function getMonthLabel(s){if(!s)return '';var p=s.split('-');return p[0]+'年'+parseInt(p[1])+'月';}
+function getMonthKey(s){if(!s)return '';var p=s.split('-');return p[0]+'-'+p[1];}
+function tf(v,d){if(v===undefined||v===null)return '0';return parseFloat(v).toFixed(d);}
+function getToday(){var d=new Date();return{y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};}
+function getCurrentMonthKey(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function getCurrentMonthLabel(){var d=new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月';}
+function getMonthMileage(rs,mk){var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;});if(mr.length===0)return 0;mr.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var e=mr[mr.length-1].mileage,s=0;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});if(pr.length>0)s=pr[0].mileage;else s=mr[0].mileage;if(e<=s)return 0;return e-s;}
+var _dpYear,_dpMonth,_dpSelectedDate;
+function initDatePicker(){var t=getToday();_dpSelectedDate=t.y+'-'+String(t.m).padStart(2,'0')+'-'+String(t.d).padStart(2,'0');_dpYear=t.y;_dpMonth=t.m;updateDateDisplay();}
+function updateDateDisplay(){var p=_dpSelectedDate.split('-');document.getElementById('dateDisplay').textContent=p[0]+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日';}
+function openDatePicker(){var p=_dpSelectedDate.split('-');_dpYear=parseInt(p[0]);_dpMonth=parseInt(p[1]);renderDatePicker();document.getElementById('dp').classList.add('sh');}
+function closeDatePicker(){document.getElementById('dp').classList.remove('sh');}
+function changeDPYear(d){_dpYear+=d;renderDatePicker();}
+function changeDPMonth(d){_dpMonth+=d;if(_dpMonth>12){_dpMonth=1;_dpYear++;}if(_dpMonth<1){_dpMonth=12;_dpYear--;}renderDatePicker();}
+function renderDatePicker(){document.getElementById('dpLabel').textContent=_dpYear+'年'+_dpMonth+'月';var dim=new Date(_dpYear,_dpMonth,0).getDate();var g=document.getElementById('dpGrid');g.innerHTML='';for(var i=1;i<=dim;i++){var div=document.createElement('div');div.textContent=i;var ds=_dpYear+'-'+String(_dpMonth).padStart(2,'0')+'-'+String(i).padStart(2,'0');if(ds===_dpSelectedDate)div.className='selected';(function(s){div.onclick=function(){_dpSelectedDate=s;updateDateDisplay();closeDatePicker();};})(ds);g.appendChild(div);}var rem=dim%4;if(rem!==0){for(var j=0;j<(4-rem);j++){var em=document.createElement('div');em.className='empty';g.appendChild(em);}}}
+function getSelDate(){return _dpSelectedDate;}
+function fmtExactFuel(v){if(v===null||v===undefined||isNaN(v)||v<=0)return '--';var s=v.toString();var i=s.indexOf('.');if(i===-1)return s+'.000';var d=s.substring(i+1,i+4);while(d.length<3)d+='0';return s.substring(0,i+1)+d;}
+function getFirstFuelIds(rs){var bm={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var ids={};Object.keys(bm).forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});for(var i=0;i<mr.length;i++){if(mr[i].liters>0){ids[mr[i].id]=true;break;}}});return ids;}
+function updateServiceCard(){var rs=getRecords();var svc=getServiceSettings();var lm=svc.lastMileage||0;var im=svc.intervalMajor||8000;var cm=0;rs.forEach(function(r){if(r.mileage&&r.mileage>cm)cm=r.mileage;});if(cm===0)cm=lm;var de=document.getElementById('svcDesc');var se=document.getElementById('svcStatus');if(lm===0&&cm===0){de.textContent='点击设置保养参数';se.textContent='设置';se.className='sc-status';return;}var dr=cm-lm;var rm=im-dr;var dt='',st='正常',sc='sc-status';if(rm<=0){dt='保养已超期 '+Math.abs(rm)+' km';st='需保养';sc='sc-status danger';}else if(rm<=500){dt='距下次保养剩 '+rm+' km，准备换机油';st='即将保养';sc='sc-status warn';}else{dt='距下次保养还有 '+rm+' km';st='正常';}de.textContent=dt;se.textContent=st;se.className=sc;}
+function showService(){var s=getServiceSettings();document.getElementById('svcLastMileage').value=s.lastMileage||'';document.getElementById('svcMajorInterval').value=s.intervalMajor||8000;document.getElementById('svcm').classList.add('sh');}
+function closeService(){document.getElementById('svcm').classList.remove('sh');}
+function confirmService(){var l=parseFloat(document.getElementById('svcLastMileage').value)||0;var m=parseFloat(document.getElementById('svcMajorInterval').value)||8000;setServiceSettings({lastMileage:l,intervalMajor:m});closeService();updateServiceCard();toast('✅ 保养设置已保存');}
+var _currentOtTypeRegular='day',_currentOtTypeHoliday='day';
+function setOtType(t,o){if(t==='regular'){_currentOtTypeRegular=o;document.querySelectorAll('#otToggleRegular button').forEach(function(b){b.classList.remove('act');});if(o==='day')document.querySelector('#otToggleRegular button:nth-child(1)').classList.add('act');else document.querySelector('#otToggleRegular button:nth-child(2)').classList.add('act');document.getElementById('otRegLabel').textContent=o==='day'?'天数':'小时数';document.getElementById('otRegRateLabel').textContent=o==='day'?'单价 (元/天)':'单价 (元/小时)';}else{_currentOtTypeHoliday=o;document.querySelectorAll('#otToggleHoliday button').forEach(function(b){b.classList.remove('act');});if(o==='day')document.querySelector('#otToggleHoliday button:nth-child(1)').classList.add('act');else document.querySelector('#otToggleHoliday button:nth-child(2)').classList.add('act');document.getElementById('otHolLabel').textContent=o==='day'?'天数':'小时数';document.getElementById('otHolRateLabel').textContent=o==='day'?'单价 (元/天)':'单价 (元/小时)';}}
+function updateSalaryCard(){var s=getSalarySettings(_viewMonthKey);var d=document.getElementById('salaryDesc');var st=document.getElementById('salaryStatus');var mm=getMonthMileage(getRecords(),_viewMonthKey);var mc=mm*0.25;var tot=(s.basic||0)+(s.housing||0)+(s.wash||0)+(s.maintenance||0)+(s.parking||0)+(s.meal||0)+(s.otherSubsidy||0)+(s.otCount||0)*(s.otRate||0)+(s.holCount||0)*(s.holRate||0)*(s.holMulti||1)+mc;d.textContent='本月实发约 '+tot.toFixed(2)+' 元';st.textContent='查看';}
+function showSalary(){var s=getSalarySettings(_viewMonthKey);document.getElementById('salaryMonthLabel').textContent=getMonthLabel(_viewMonthKey);document.getElementById('sBasic').value=s.basic;document.getElementById('sHousing').value=s.housing;document.getElementById('sWash').value=s.wash;document.getElementById('sMaintenance').value=s.maintenance;document.getElementById('sParking').value=s.parking;document.getElementById('sMeal').value=s.meal||0;document.getElementById('sOtherSubsidy').value=s.otherSubsidy||0;_currentOtTypeRegular=s.otType||'day';_currentOtTypeHoliday=s.holType||'day';setOtType('regular',_currentOtTypeRegular);setOtType('holiday',_currentOtTypeHoliday);document.getElementById('sOtCount').value=s.otCount;document.getElementById('sOtRate').value=s.otRate;document.getElementById('sHolCount').value=s.holCount;document.getElementById('sHolRate').value=s.holRate;document.getElementById('sHolMulti').value=s.holMulti;var mm=getMonthMileage(getRecords(),_viewMonthKey);document.getElementById('sMileage').value=mm;calcSalaryTotal();document.getElementById('salarym').classList.add('sh');}
+function closeSalary(){document.getElementById('salarym').classList.remove('sh');}
+function calcSalaryTotal(){var b=parseFloat(document.getElementById('sBasic').value)||0;var h=parseFloat(document.getElementById('sHousing').value)||0;var w=parseFloat(document.getElementById('sWash').value)||0;var m=parseFloat(document.getElementById('sMaintenance').value)||0;var p=parseFloat(document.getElementById('sParking').value)||0;var meal=parseFloat(document.getElementById('sMeal').value)||0;var other=parseFloat(document.getElementById('sOtherSubsidy').value)||0;var oc=parseFloat(document.getElementById('sOtCount').value)||0;var or=parseFloat(document.getElementById('sOtRate').value)||0;var hc=parseFloat(document.getElementById('sHolCount').value)||0;var hr=parseFloat(document.getElementById('sHolRate').value)||0;var hm=parseFloat(document.getElementById('sHolMulti').value)||1;var mi=parseFloat(document.getElementById('sMileage').value)||0;var mc=mi*0.25;document.getElementById('sMileageComm').value=mc.toFixed(2)+' 元';var tot=b+h+w+m+p+meal+other+(oc*or)+(hc*hr*hm)+mc;document.getElementById('sTotal').textContent=tot.toFixed(2);}
+function confirmSalary(){var s={basic:parseFloat(document.getElementById('sBasic').value)||0,housing:parseFloat(document.getElementById('sHousing').value)||0,wash:parseFloat(document.getElementById('sWash').value)||0,maintenance:parseFloat(document.getElementById('sMaintenance').value)||0,parking:parseFloat(document.getElementById('sParking').value)||0,meal:parseFloat(document.getElementById('sMeal').value)||0,otherSubsidy:parseFloat(document.getElementById('sOtherSubsidy').value)||0,otType:_currentOtTypeRegular,otCount:parseFloat(document.getElementById('sOtCount').value)||0,otRate:parseFloat(document.getElementById('sOtRate').value)||0,holType:_currentOtTypeHoliday,holCount:parseFloat(document.getElementById('sHolCount').value)||0,holRate:parseFloat(document.getElementById('sHolRate').value)||0,holMulti:parseFloat(document.getElementById('sHolMulti').value)||1};setSalarySettings(_viewMonthKey,s);updateSalaryCard();closeSalary();toast('✅ '+getMonthLabel(_viewMonthKey)+' 工资单已保存');}
+var _viewMonthKey=getCurrentMonthKey();
+function changeViewMonth(v){_viewMonthKey=v;renderStats();renderTarget();updateSalaryCard();renderRecords();}
+function calcMonthFuel(rs){var so=rs.slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var fm={};var lm=null;var ll=0;var ff=getFirstFuelIds(rs);so.forEach(function(r){var hm=r.mileage&&r.mileage>0;var hl=r.liters&&r.liters>0;if(ff[r.id]){fm[r.id]=null;}else if(hm&&lm!==null&&ll>0){var d=r.mileage-lm;fm[r.id]=d>0?{fuel:(ll/d)*100,distance:d}:null;}else{fm[r.id]=null;}if(hm)lm=r.mileage;if(hl)ll=r.liters;});return fm;}
+function calcMonthAvg(rs,mk){var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return null;var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return null;var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return null;return (tl/tm)*100;}
+function calcTargetInfo(rs,mk){var tg=getTarget();var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return{avg:null,gap:null,needKm:null,status:'数据不足（至少需要两条里程记录）',isOK:false,target:tg};var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return{avg:null,gap:null,needKm:null,status:'里程差为零',isOK:false,target:tg};var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return{avg:null,gap:null,needKm:null,status:'暂无实际加油升数',isOK:false,target:tg};var cur=(tl/tm)*100;var gap=cur-tg;var nk=null,st='',ok=false;if(cur<=tg){ok=true;st='✅ 合格 — 当前油耗符合标准（≤'+tg.toFixed(1)+'）';nk=0;}else{var req=(tl/tg)*100;nk=req-tm;if(nk<0)nk=0;st='❌ 超标 — 还需跑 '+Math.ceil(nk)+' 公里可达标';}return{avg:cur,gap:gap,needKm:nk,status:st,isOK:ok,target:tg};}
+var _collapsedMonths={},_userToggled={};
+function renderAll(){renderMonthBadge();renderPlate();renderStats();renderTarget();updateServiceCard();updateSalaryCard();renderRecords();renderSummary();}
+function renderMonthBadge(){var sel=document.getElementById('viewMonthBadge');var rs=getRecords();var mks={};rs.forEach(function(r){var k=getMonthKey(r.date);if(k)mks[k]=getMonthLabel(r.date);});var ck=getCurrentMonthKey();if(!mks[ck])mks[ck]=getCurrentMonthLabel();var keys=Object.keys(mks).sort(function(a,b){return b.localeCompare(a);});sel.innerHTML='';keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='📅 '+mks[k];if(k===_viewMonthKey)o.selected=true;sel.appendChild(o);});}
+function renderPlate(){var p=getPlate();var el=document.getElementById('pt');if(p){el.textContent=p;el.className='';}else{el.textContent='车牌';el.className='ph';}var n=getDriverName();var st=document.getElementById('storeStatus');if(st)st.textContent='💾 云端存储'+(n?' · '+n:'')+(p?' · '+p:'');}
+function renderStats(){var rs=getRecords();var tm=getMonthMileage(rs,_viewMonthKey);var mr=rs.filter(function(r){return getMonthKey(r.date)===_viewMonthKey;});var cnt=mr.length,amt=0,lit=0;mr.forEach(function(r){amt+=r.amount||0;lit+=r.liters||0;});var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;document.getElementById('sc').textContent=cnt;document.getElementById('sam').innerHTML=tf(amt,2)+' <span class="u">元</span>';document.getElementById('sli').innerHTML=tf(lit,2)+' <span class="u">L</span>';document.getElementById('stm').innerHTML=tm+' <span class="u">km</span>';document.getElementById('sem').innerHTML=em+' <span class="u">km</span>';var ga=calcMonthAvg(rs,_viewMonthKey);document.getElementById('sav').innerHTML=(ga!==null&&ga>0)?fmtExactFuel(ga)+' <span class="u">L/100km</span>':'--';}
+function renderTarget(){var rs=getRecords();var info=calcTargetInfo(rs,_viewMonthKey);document.getElementById('sfd').textContent='≤ '+info.target.toFixed(1)+' L/100km';document.getElementById('tca').textContent=info.avg!==null?fmtExactFuel(info.avg)+' L/100km':'--';var ge=document.getElementById('tgp');if(info.gap!==null){if(info.gap>0){ge.innerHTML='<span class="r">超出 '+fmtExactFuel(info.gap)+' L/100km</span>';}else if(info.gap<0){ge.innerHTML='<span class="g">低于 '+fmtExactFuel(Math.abs(info.gap))+' L/100km</span>';}else{ge.innerHTML='<span style="color:#2563eb;font-weight:700;">正好达标</span>';}}else{ge.textContent='--';}var nk=document.getElementById('tnk');if(info.needKm!==null&&info.needKm>0)nk.innerHTML='<span class="r">还需跑 '+Math.ceil(info.needKm)+' km</span>';else if(info.needKm!==null&&info.needKm===0)nk.innerHTML='<span class="g">0 km（已达标）</span>';else nk.textContent='--';var st=document.getElementById('tst');st.textContent=info.status;st.className='tst';if(info.isOK)st.classList.add('ok');else if(info.status.indexOf('超标')>-1)st.classList.add('bad');}
+function renderRecords(){var rs=getRecords();var c=document.getElementById('rl');if(rs.length===0){c.innerHTML='<div class="es"><span class="bi">📭</span>暂无加油记录<div class="ht">添加第一条记录开始记账</div></div>';return;}var fm=calcMonthFuel(rs);var bm={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var mk=Object.keys(bm).sort(function(a,b){return b.localeCompare(a);});var cm=_viewMonthKey;var h='';mk.forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var ta=mr.reduce(function(s,r){return s+(r.amount||0);},0);var tl=mr.reduce(function(s,r){return s+(r.liters||0);},0);var ic;if(_userToggled[k]!==undefined)ic=_collapsedMonths[k];else ic=(k!==cm);var hc='month-header'+(ic?' collapsed':'');var bc='month-body'+(ic?' hidden':'');var bi='mb-'+k.replace('-','_');h+='<div class="'+hc+'" onclick="toggleMonth(\''+k+'\')" data-mkey="'+k+'">';h+='<div class="mh-left">📅 '+getMonthLabel(k)+'</div>';h+='<div class="mh-right">'+mr.length+'条 · '+ta.toFixed(2)+'元 · '+tl.toFixed(2)+'L <span class="arrow">▼</span></div>';h+='</div>';h+='<div class="'+bc+'" id="'+bi+'">';mr.forEach(function(r){var fd=fm[r.id]||null;var ft='--',b='na',dt='';if(fd&&fd.fuel>0){ft=fmtExactFuel(fd.fuel)+' L/100km';dt=fd.distance;b='';}var ps=[];if(r.amount&&r.amount>0)ps.push('<span><span class="lb">油费</span> <span class="vl">'+tf(r.amount,2)+' 元</span></span>');if(r.liters&&r.liters>0)ps.push('<span><span class="lb">升数</span> <span class="vl">'+tf(r.liters,2)+' L</span></span>');if(dt)ps.push('<span><span class="lb">本次跑</span> <span class="vl">'+dt+' km</span></span>');if(r.mileage&&r.mileage>0)ps.push('<span><span class="lb">里程</span> <span class="vl">'+r.mileage+' km</span></span>');if(ps.length===0)ps.push('<span style="color:#9CA3AF">无数据</span>');h+='<div class="ri"><div class="tr"><span class="dt">'+fmtDate(r.date)+'</span><div class="ac"><span class="fb '+b+'">'+ft+'</span><button onclick="event.stopPropagation();editRecord('+r.id+')">✎</button><button onclick="event.stopPropagation();delRecord('+r.id+')">✕</button></div></div><div class="dl">'+ps.join(' &nbsp;|&nbsp; ')+'</div></div>';});h+='</div>';});c.innerHTML=h;}
+function toggleMonth(k){var cm=_viewMonthKey;if(_userToggled[k]===undefined)_collapsedMonths[k]=(k!==cm);_collapsedMonths[k]=!_collapsedMonths[k];_userToggled[k]=true;var bi='mb-'+k.replace('-','_');var b=document.getElementById(bi);var h=document.querySelector('.month-header[data-mkey="'+k+'"]');if(!b||!h)return;if(_collapsedMonths[k]){b.classList.add('hidden');h.classList.add('collapsed');}else{b.classList.remove('hidden');h.classList.remove('collapsed');}}
+function renderSummary(){var rs=getRecords();var c=document.getElementById('ml');if(rs.length===0){c.innerHTML='<div class="es"><span class="bi">📊</span>暂无月度数据<div class="ht">添加记录后自动汇总</div></div>';return;}var mks={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!mks[k])mks[k]=getMonthLabel(r.date);});var keys=Object.keys(mks).sort(function(a,b){return b.localeCompare(a);});var h='';keys.forEach(function(k){var mr=rs.filter(function(r){return getMonthKey(r.date)===k;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var amt=mr.reduce(function(s,r){return s+(r.amount||0);},0);var lit=mr.reduce(function(s,r){return s+(r.liters||0);},0);var mm=getMonthMileage(rs,k);var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;var fe=calcMonthAvg(rs,k);var fd='--';if(fe!==null&&fe>0)fd=fmtExactFuel(fe)+' L/100km';h+='<div class="mi"><div class="mlb">'+mks[k]+'（'+mr.length+'次）</div><div class="ms"><div class="sl"><span>总油费</span><span class="nm">'+tf(amt,2)+' 元</span></div><div class="sl"><span>总升数</span><span class="nm">'+tf(lit,2)+' L</span></div><div class="sl"><span>本月里程</span><span class="nm">'+mm+' km</span></div><div class="sl"><span>期末里程</span><span class="hn">'+em+' km</span></div><div class="sl" style="grid-column:span 2;border-bottom:none;justify-content:center;padding-top:6px"><span>平均油耗</span><span class="fe">'+fd+'</span></div></div></div>';});c.innerHTML=h;}
+function updatePreview(){var dt=getSelDate();var amt=parseFloat(document.getElementById('ia').value)||0;var lit=parseFloat(document.getElementById('il').value)||0;var mil=parseFloat(document.getElementById('im').value)||0;var el=document.getElementById('fp');if(!dt){el.innerHTML='<span class="em">请选择日期</span>';return;}if(!(amt>0||lit>0||mil>0)){el.innerHTML='<span class="em">至少填一项（金额/升数/里程）</span>';return;}if(lit>0&&mil>0){var rs=getRecords();var mr=rs.concat([{id:Date.now(),date:dt,amount:amt,liters:lit,mileage:mil}]);var fm=calcMonthFuel(mr);var fd=fm[Date.now()]||null;if(fd!==null&&fd.fuel>0){el.innerHTML='📊 预计百公里油耗：<strong>'+fmtExactFuel(fd.fuel)+'</strong> L/100km（本次跑 '+fd.distance+' km）';el.style.color='var(--primary-dark)';return;}else{el.innerHTML='<span style="color:var(--text2);font-weight:400">数据不足，无法计算</span>';el.style.color='var(--text2)';return;}}var msg=[];if(amt>0)msg.push('💰 '+amt.toFixed(2)+' 元');if(lit>0)msg.push('⛽ '+lit.toFixed(2)+' L');if(mil>0)msg.push('📏 '+mil+' km');el.innerHTML='<span style="color:var(--text2);font-weight:400">📝 '+msg.join(' · ')+'</span>';}
+function handleSave(){var dt=getSelDate();var amt=parseFloat(document.getElementById('ia').value)||0;var lit=parseFloat(document.getElementById('il').value)||0;var mil=parseFloat(document.getElementById('im').value)||0;if(!dt){toast('请选择日期');return;}if(!(amt>0||lit>0||mil>0)){toast('请至少填一项');return;}if(mil>0){var rs=getRecords();var mk=getMonthKey(dt);var mp=0;rs.forEach(function(r){if(getMonthKey(r.date)===mk&&r.mileage&&r.mileage>mp)mp=r.mileage;});if(mp>0&&mil<=mp){if(!confirm('当前里程 '+mil+' 不大于本月上次记录 '+mp+'，确定继续吗？'))return;}}var rs=getRecords();var nr={id:Date.now(),date:dt,amount:amt,liters:lit,mileage:mil?Math.round(mil):0};rs.push(nr);setRecords(rs);_viewMonthKey=getMonthKey(dt);renderAll();var fm=calcMonthFuel(getRecords());var fd=fm[nr.id];var msg='✅ 记录已保存';if(fd&&fd.fuel>0){msg+='，本次跑了 '+fd.distance+' km，油耗 '+fmtExactFuel(fd.fuel)+' L/100km';}toast(msg);document.getElementById('ia').value='';document.getElementById('il').value='';document.getElementById('im').value='';document.getElementById('fp').innerHTML='<span class="em">至少填一项，自动计算油耗（需里程+升数）</span>';initDatePicker();document.getElementById('ia').focus();document.getElementById('sa').scrollTop=0;}
+var _editId=null;
+function editRecord(id){var r=null;getRecords().forEach(function(x){if(x.id===id)r=x;});if(!r)return;_editId=id;document.getElementById('ed').value=r.date||'';document.getElementById('ea').value=r.amount||'';document.getElementById('el').value=r.liters||'';document.getElementById('ei').value=r.mileage||'';document.getElementById('em').classList.add('sh');}
+function closeEdit(){document.getElementById('em').classList.remove('sh');_editId=null;}
+function saveEdit(){var id=_editId;if(id===null)return;var dt=document.getElementById('ed').value;var amt=parseFloat(document.getElementById('ea').value);var lit=parseFloat(document.getElementById('el').value);var mil=parseFloat(document.getElementById('ei').value);if(!dt){toast('请选择日期');return;}var rs=getRecords();var idx=-1;for(var i=0;i<rs.length;i++)if(rs[i].id===id)idx=i;if(idx===-1){toast('记录不存在');return;}rs[idx].date=dt;rs[idx].amount=isNaN(amt)?0:amt;rs[idx].liters=isNaN(lit)?0:lit;rs[idx].mileage=isNaN(mil)?0:Math.round(mil);setRecords(rs);closeEdit();renderAll();toast('✅ 记录已更新');}
+function delRecord(id){if(!confirm('确定删除此记录吗？'))return;var rs=getRecords().filter(function(r){return r.id!==id;});setRecords(rs);renderAll();toast('已删除');}
+function showBackup(){var d=getData();var j=JSON.stringify(d);var b='';try{b=btoa(unescape(encodeURIComponent(j)));}catch(e){b=j;}document.getElementById('bkText').value=b;document.getElementById('bkm').classList.add('sh');}
+function closeBackup(){document.getElementById('bkm').classList.remove('sh');}
+function copyBackup(){var t=document.getElementById('bkText');t.select();t.setSelectionRange(0,999999);try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){toast('📋 已复制，请粘贴保存');});}else{document.execCommand('copy');toast('📋 已复制，请粘贴保存');}}catch(e){toast('请手动长按选中复制');}}
+function showRestore(){document.getElementById('rsText').value='';document.getElementById('rsm').classList.add('sh');}
+function closeRestore(){document.getElementById('rsm').classList.remove('sh');}
+function doRestore(){var v=document.getElementById('rsText').value.trim();if(!v){toast('请粘贴备份内容');return;}var j='';try{j=decodeURIComponent(escape(atob(v)));}catch(e){j=v;}var d=null;try{d=JSON.parse(j);}catch(e){toast('备份内容格式错误');return;}if(!d||!Array.isArray(d.records)){toast('备份内容无效');return;}if(!confirm('确认恢复吗？当前数据将被覆盖！'))return;var cur=getData();d.plateNumber=cur.plateNumber||d.plateNumber||_authPlate;setData(_normalizeData(d,_authPlate));closeRestore();renderAll();toast('✅ 数据已恢复');}
+var _tt=null;
+function toast(m){var el=document.getElementById('tt2');el.textContent=m;el.classList.add('sh');clearTimeout(_tt);_tt=setTimeout(function(){el.classList.remove('sh');},2200);}
+function showPlate(){document.getElementById('pi').value=getPlate();document.getElementById('piBackupData').value='';document.getElementById('pm').classList.add('sh');}
+function closePlate(){document.getElementById('pm').classList.remove('sh');}
+function confirmPlate(){var bd=document.getElementById('piBackupData').value.trim();if(bd){var j='';try{j=decodeURIComponent(escape(atob(bd)));}catch(e){j=bd;}var d=null;try{d=JSON.parse(j);}catch(e){toast('❌ 备份格式错误');closePlate();return;}if(!d||!Array.isArray(d.records)){toast('❌ 备份无效');closePlate();return;}d.plateNumber=_authPlate;setData(_normalizeData(d,_authPlate));renderAll();toast('✅ 数据已恢复');}closePlate();}
+function buildTargetOptions(){var sel=document.getElementById('tsel');var cur=getTarget();sel.innerHTML='';for(var i=10;i<=1000;i++){var v=i/10;var o=document.createElement('option');o.value=v.toFixed(1);o.textContent=v.toFixed(1)+' L/100km';if(Math.abs(v-cur)<0.001)o.selected=true;sel.appendChild(o);}}
+function showTarget(){buildTargetOptions();document.getElementById('tch').textContent='当前：'+getTarget().toFixed(1)+' L/100km';document.getElementById('tm').classList.add('sh');setTimeout(function(){var sel=document.getElementById('tsel');var o=sel.querySelector('option:checked');if(o)o.scrollIntoView({block:'center'});},100);}
+function closeTarget(){document.getElementById('tm').classList.remove('sh');}
+function confirmTarget(){var sel=document.getElementById('tsel');var v=parseFloat(sel.value);if(isNaN(v)){toast('请选择油耗标准');return;}setTarget(v);closeTarget();renderTarget();toast('✅ 标准油耗已设为 '+v.toFixed(1)+' L/100km');}
+var _reportData=null,_currentReportMonth='__all__';
+function buildSheet(mk,mr,pl,rs){var amt=mr.reduce(function(s,r){return s+(r.amount||0);},0);var lit=mr.reduce(function(s,r){return s+(r.liters||0);},0);var mm=getMonthMileage(rs,mk);var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;var af=calcMonthAvg(rs,mk);var fa=(af!==null&&af>0)?fmtExactFuel(af):'--';var h='<div class="sh2">';h+='<div class="st2">'+escapeHtml(getReportTitle())+'</div>';h+='<div class="sm">'+getMonthLabel(mk)+'</div>';h+='<table class="it"><tr>';h+='<td class="lb">车牌号:</td><td class="vl">'+escapeHtml(pl)+'</td>';h+='<td class="lb">驾驶员:</td><td class="vl">'+escapeHtml(getDriverName())+'</td>';h+='<td class="lb">总公里数:</td><td class="vl">'+(em||0)+'</td>';h+='<td class="lb">当月里程:</td><td class="vl">'+mm+'</td>';h+='</tr><tr>';h+='<td class="lb">加油金额:</td><td class="vl">'+amt.toFixed(2)+'</td>';h+='<td class="lb">当月油耗(升)</td><td class="vl">'+lit.toFixed(2)+'</td>';h+='<td class="lb">百公里油耗:</td><td class="vl">'+fa+'</td>';h+='<td class="lb">所属项目名称:</td><td class="vl"></td>';h+='</tr></table>';h+='<table class="mt"><colgroup>';h+='<col style="width:5%"><col style="width:15%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%">';h+='</colgroup><thead><tr>';h+='<th>序号</th><th>费用产生日期</th><th>油费</th><th>本次加油数量<br>(升)</th><th>本次加油行驶<br>里程(公里)</th><th>路桥费</th><th>停车费</th><th>维修保养</th><th>洗车费</th><th>差旅费用</th>';h+='</tr></thead><tbody>';for(var i=0;i<31;i++){if(i<mr.length){var r=mr[i];h+='<tr><td>'+(i+1)+'</td><td>'+fmtDateCN(r.date)+'</td><td>'+tf(r.amount,2)+'</td><td>'+tf(r.liters,2)+'</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';}else{h+='<tr><td>'+(i+1)+'</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';}}h+='<tr class="tot"><td>32</td><td>合计:</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';h+='<tr class="tot"><td>33</td><td colspan="9" class="gt">总计金额</td></tr>';h+='</tbody></table></div>';return h;}
+function openReport(){var rs=getRecords();if(rs.length===0){toast('暂无数据');return;}var pl=getPlate()||'_______';var gr={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!gr[k])gr[k]=[];gr[k].push(r);});var ms=Object.keys(gr).sort(function(a,b){return b.localeCompare(a);});var sel=document.getElementById('reportMonthSelect');sel.innerHTML='';var oa=document.createElement('option');oa.value='__all__';oa.textContent='📊 全部月份（共'+ms.length+'个月）';sel.appendChild(oa);ms.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='📄 '+getMonthLabel(k)+'（'+gr[k].length+'条）';sel.appendChild(o);});_currentReportMonth=ms[0]||'__all__';sel.value=_currentReportMonth;document.getElementById('reportTitleInput').value=getReportTitle();_reportData={plate:pl,records:rs,groups:gr,months:ms};renderReportContent();document.getElementById('rm').classList.add('sh');}
+function switchReportMonth(){var sel=document.getElementById('reportMonthSelect');_currentReportMonth=sel.value;renderReportContent();}
+function onReportTitleInput(){var v=document.getElementById('reportTitleInput').value;setReportTitle(v);renderReportContent();}
+function renderReportContent(){if(!_reportData)return;var d=_reportData;var h='';if(_currentReportMonth==='__all__'){d.months.forEach(function(k){var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div style="margin-bottom:20px">';h+='<div class="pw">'+buildSheet(k,mr,d.plate,d.records)+'</div>';h+='</div>';});}else{var k=_currentReportMonth;var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="pw">'+buildSheet(k,mr,d.plate,d.records)+'</div>';h+='<div class="sch">← 左右滑动查看完整表格 →</div>';}document.getElementById('rc').innerHTML=h;}
+function closeReport(){document.getElementById('rm').classList.remove('sh');}
+function printReport(){if(!_reportData){toast('没有可打印的数据');return;}var d=_reportData;var h='';if(_currentReportMonth==='__all__'){d.months.forEach(function(k){var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="a4">'+buildSheet(k,mr,d.plate,d.records)+'</div>';});}else{var k=_currentReportMonth;var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="a4">'+buildSheet(k,mr,d.plate,d.records)+'</div>';}var pc=document.getElementById('pc');pc.innerHTML=h;pc.style.display='block';setTimeout(function(){window.print();setTimeout(function(){pc.style.display='none';pc.innerHTML='';},1500);},300);}
+function copyReport(){var c=document.getElementById('rc');if(!c)return;var t=c.innerText.replace(/\s+/g,' ').trim();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('📋 报表内容已复制');}).catch(function(){_fallbackCopy(t);});}else _fallbackCopy(t);}
+function _fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('📋 报表内容已复制');}catch(e){toast('复制失败');}document.body.removeChild(ta);}
+document.querySelectorAll('.tb').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.tb').forEach(function(x){x.classList.remove('act');});this.classList.add('act');var t=this.dataset.t;document.querySelectorAll('.tp').forEach(function(p){p.classList.remove('act');});document.getElementById(t==='r'?'pr':'ps').classList.add('act');});});
+document.getElementById('ia').addEventListener('input',updatePreview);
+document.getElementById('il').addEventListener('input',updatePreview);
+document.getElementById('im').addEventListener('input',updatePreview);
+document.getElementById('bSave').addEventListener('click',handleSave);
+document.getElementById('im').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();handleSave();}});
+document.querySelectorAll('.mo').forEach(function(o){o.addEventListener('click',function(e){if(e.target===this)this.classList.remove('sh');});});
+function showLoginOverlay(){var el=document.getElementById('loginOverlay');if(el)el.style.display='flex';}
+function hideLoginOverlay(){var el=document.getElementById('loginOverlay');if(el)el.style.display='none';}
+function logoutLocal(){localStorage.removeItem(STORAGE_TOKEN_KEY);localStorage.removeItem(STORAGE_PLATE_KEY);_authToken='';_authPlate='';_cacheData=null;showLoginOverlay();}
+async function doLogin(){var p=document.getElementById('loginPlate').value.trim();var e=document.getElementById('loginError');e.textContent='';if(!p){e.textContent='请输入车牌号';return;}var b=document.getElementById('loginBtn');b.disabled=true;b.textContent='登录中...';try{var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate:p})});var d=await r.json();if(!r.ok)throw new Error(d.error||'登录失败');_authToken=d.token;_authPlate=d.plate;localStorage.setItem(STORAGE_TOKEN_KEY,_authToken);localStorage.setItem(STORAGE_PLATE_KEY,_authPlate);await loadServerData();hideLoginOverlay();startApp();}catch(err){e.textContent=err.message||'登录失败';}finally{b.disabled=false;b.textContent='登 录';}}
+function startApp(){var el=document.getElementById('storeStatus');if(el){el.textContent='💾 云端存储 · '+_authPlate;el.className='storeStatus';}initDatePicker();renderAll();}
+async function initApp(){var b=document.getElementById('loginBtn');var p=document.getElementById('loginPlate');if(b)b.addEventListener('click',doLogin);if(p)p.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});if(_authToken&&_authPlate){try{await loadServerData();hideLoginOverlay();startApp();return;}catch(e){}}showLoginOverlay();}
+initApp();
+</script>
+</body>
+</html>
