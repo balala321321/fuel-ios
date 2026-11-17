@@ -442,6 +442,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:
 </div>
 </div>
 <div id="viewStations" class="view">
+<div class="vcard" onclick="openNearbyGasStations()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font-size:26px">&#128205;</span>
+<div><div style="font-size:15px;font-weight:700">附近优惠加油站</div><div style="font-size:12px;color:var(--text2);margin-top:4px">定位后打开高德地图看周边油站和油价</div></div>
+</div>
+<div style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap">去加油 &#8250;</div>
+</div>
 <div class="vcard">
 <div class="vct"><span>&#9981; 我常去的加油站</span><button class="vbtn g" onclick="showStationForm()">&#65291; 添加</button></div>
 <div id="stationList"></div>
@@ -1009,6 +1016,22 @@ function exportCSV(){
   var orig=renderAll;
   renderAll=function(){orig();try{buildStationOptions();refreshNewViews();}catch(e){}};
 })();
+
+
+/* ===== 附近优惠加油站（定位后跳高德） ===== */
+function openNearbyGasStations(){
+  var fallback='https://uri.amap.com/search?keyword=加油站';
+  function go(u){try{if(window.AndroidBridge&&window.AndroidBridge.openUrl){window.AndroidBridge.openUrl(u);return;}}catch(e){}try{var w=window.open(u,'_blank');if(w)return;}catch(e){}try{location.href=u;}catch(e2){toast('打开地图失败');}}
+  if(!navigator.geolocation){toast('设备不支持定位，先打开周边搜索');go(fallback);return;}
+  toast('正在获取定位...');
+  navigator.geolocation.getCurrentPosition(function(p){
+    var lat=p.coords.latitude,lng=p.coords.longitude;
+    go('https://uri.amap.com/search?keyword=加油站&center='+lng+','+lat+'&radius=5000&callnative=0');
+  },function(){
+    toast('定位失败（需在系统里允许定位），先打开周边搜索');
+    go(fallback);
+  },{timeout:8000,enableHighAccuracy:true});
+}
 
 /* ===== A4 报表导出（替代 CSV） ===== */
 function closeA4(){var v=document.getElementById('a4view');if(v)v.classList.remove('sh');}
