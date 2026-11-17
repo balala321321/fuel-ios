@@ -1,7 +1,7 @@
 import UIKit
 import WebKit
 
-final class WebViewController: UIViewController, WKScriptMessageHandler {
+final class WebViewController: UIViewController, WKScriptMessageHandler, WKUIDelegate {
     private var web: WKWebView!
     private var server: LocalServer?
 
@@ -39,6 +39,9 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
         window.AndroidBridge = {
           saveText: function (name, content) {
             try { window.webkit.messageHandlers.fuelSave.postMessage({ name: name, content: content }); } catch (e) {}
+          },
+          openUrl: function (url) {
+            try { window.webkit.messageHandlers.fuelOpenUrl.postMessage({ url: String(url) }); } catch (e) {}
           }
         };
         (function () {
@@ -80,11 +83,13 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
                          forMainFrameOnly: true))
         cfg.userContentController.add(self, name: "fuelSave")
         cfg.userContentController.add(self, name: "fuelPersist")
+        cfg.userContentController.add(self, name: "fuelOpenUrl")
 
         let webFrame = CGRect(x: 0, y: 0, width: view.bounds.width, height: view.bounds.height)
         web = WKWebView(frame: webFrame, configuration: cfg)
         web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         web.allowsBackForwardNavigationGestures = false
+        web.uiDelegate = self
         view.addSubview(web)
 
         let root = Bundle.main.url(forResource: "www", withExtension: nil)
@@ -101,8 +106,23 @@ final class WebViewController: UIViewController, WKScriptMessageHandler {
 
     override var prefersStatusBarHidden: Bool { false }
 
+    // window.open(_blank) / 外部链接：交给系统（高德 App 或 Safari）打开
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let u = navigationAction.request.url {
+            UIApplication.shared.open(u, options: [:], completionHandler: nil)
+        }
+        return nil
+    }
+
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
+        if message.name == "fuelOpenUrl" {
+            guard let body = message.body as? [String: Any],
+                  let s = body["url"] as? String, let u = URL(string: s) else { return }
+            UIApplication.shared.open(u, options: [:], completionHandler: nil)
+            return
+        }
         if message.name == "fuelPersist" {
             guard let body = message.body as? [String: Any] else { return }
             if let clear = body["clear"] as? Bool, clear {
