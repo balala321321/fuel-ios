@@ -1,6 +1,267 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>油耗记账</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--primary:#2B7AFF;--primary-dark:#1A5FCC;--primary-light:#F0F6FF;--bg:#F4F7FB;--card:#FFFFFF;--text:#1E293B;--text2:#64748B;--border:#E2E8F0;--radius:12px;--radius-sm:10px;--shadow:0 2px 6px rgba(0,0,0,0.03), 0 4px 12px rgba(43,122,255,0.05);}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.4}
+.app{position:fixed;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column}
+.hd{flex-shrink:0;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;padding:4px 14px;padding-top:calc(4px + env(safe-area-inset-top, 0px));z-index:10;box-shadow:0 2px 10px rgba(43,122,255,0.2)}
+.hd .row{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:600px;margin:0 auto;min-height:32px}
+.hd .title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px}
+.plate{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;min-height:28px}
+.storeStatus{max-width:600px;margin:2px auto 0;font-size:10px;text-align:right;opacity:.8;padding-right:4px}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 90px}
+.content{max-width:480px;margin:0 auto}
+.view-page{display:none}
+.view-page.active{display:block;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+
+/* 底部导航栏 */
+.bottom-nav{position:fixed;bottom:0;left:0;width:100%;background:#fff;display:flex;box-shadow:0 -2px 10px rgba(0,0,0,0.05);padding-bottom:env(safe-area-inset-bottom,0px);z-index:100;height:55px}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text2);font-size:10px;font-weight:600;cursor:pointer;position:relative}
+.bottom-nav .nav-item.active{color:var(--primary)}
+.bottom-nav .nav-item .icon{font-size:20px;margin-bottom:2px;filter:grayscale(1);opacity:0.6}
+.bottom-nav .nav-item.active .icon{filter:grayscale(0);opacity:1}
+.nav-item.center-btn {overflow: visible;}
+.nav-item.center-btn .plus-circle{position:absolute;top:-18px;width:46px;height:46px;background:linear-gradient(135deg,#10B981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:300;box-shadow:0 4px 10px rgba(16,185,129,0.3);border:4px solid #fff;transition:transform .2s}
+.nav-item.center-btn:active .plus-circle{transform:scale(.95)}
+.nav-item.center-btn .nav-text{margin-top:26px;}
+
+.month-badge-wrap {position:relative;display:inline-block;margin-bottom:10px;}
+.month-badge{display:inline-block;padding:6px 30px 6px 14px;background:var(--primary-light);color:var(--primary-dark);border-radius:20px;font-size:13px;font-weight:600;border:1.5px solid rgba(43,122,255,.25);outline:none;text-align:center;appearance:none}
+.month-badge-wrap::after {content:'▼';position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--primary);pointer-events:none}
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0}
+.st{background:var(--card);border-radius:var(--radius-sm);padding:10px 4px;box-shadow:var(--shadow);text-align:center;display:flex;flex-direction:column;justify-content:center;min-height:60px}
+.st .lb{font-size:10px;color:var(--text2);margin-bottom:4px}
+.st .vl{font-size:14px;font-weight:700;color:var(--primary-dark);white-space:nowrap}
+.st .vl .u{font-size:9px;opacity:.75}
+
+.svc-card,.salary-card{background:var(--card);border-radius:var(--radius);padding:12px 14px;margin-top:10px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}
+.svc-card .sc-left,.salary-card .sc-left {display:flex; align-items:center; gap:10px;flex:1}
+.svc-card .sc-icon,.salary-card .sc-icon {font-size:24px}
+.svc-card .sc-title,.salary-card .sc-title {font-size:14px; font-weight:700; margin-bottom:2px}
+.svc-card .sc-desc,.salary-card .sc-desc {font-size:13px; font-weight:500; color:var(--text2)}
+.svc-card .sc-status,.salary-card .sc-status {font-size:12px; font-weight:700; padding:4px 10px; border-radius:14px; background:var(--primary-light); color:var(--primary-dark)}
+.svc-card .sc-status.warn {background:#FEF3C7; color:#D97706}
+.svc-card .sc-status.danger {background:#FEE2E2; color:#DC2626}
+
+.tg{background:var(--card);border-radius:var(--radius);padding:14px;margin-top:10px;box-shadow:var(--shadow)}
+.tg .tt{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:8px}
+.tg .tr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #F1F5F9;font-size:13px}
+.tg .tr .lb{color:var(--text2)}
+.tg .tr .vl{font-weight:600}
+.tg .tr .vl.r{color:#DC2626}
+.tg .tr .vl.g{color:#059669}
+.tg .tst{font-size:12px;font-weight:600;text-align:center;padding:8px 0;border-radius:8px;background:var(--primary-light);margin-top:8px;color:var(--primary-dark)}
+.tg .tst.ok{background:#DCFCE7;color:#166534}
+.tg .tst.bad{background:#FEE2E2;color:#991B1B}
+
+.record-tabs{display:flex;background:#fff;border-radius:var(--radius);margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow)}
+.record-tab{flex:1;padding:12px 0;text-align:center;font-size:14px;font-weight:600;color:var(--text2);cursor:pointer}
+.record-tab.active{background:var(--primary-light);color:var(--primary);border-bottom:2px solid var(--primary)}
+.record-content{display:none}
+.record-content.active{display:block}
+.fc{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:5px}
+.fg input,.fg select{width:100%;height:44px;padding:0 14px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-weight:500}
+.date-display{width:100%;height:44px;padding:0 14px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;display:flex;align-items:center;justify-content:space-between;font-weight:500}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bs{width:100%;height:46px;background:linear-gradient(135deg, var(--primary), var(--primary-dark));color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;margin-top:10px;box-shadow:0 4px 12px rgba(43,122,255,.25)}
+
+.mine-list{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.mine-item{display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid #F1F5F9;font-size:15px;font-weight:500}
+.mine-item:last-child{border-bottom:none}
+.mine-item .arrow{color:#CBD5E1;font-size:16px}
+
+.rl{display:flex;flex-direction:column;gap:8px}
+.month-header{padding:12px 14px;background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;font-weight:700}
+.month-body{display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.month-body.hidden{display:none}
+.ri{background:var(--card);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);border-left:4px solid var(--primary)}
+.ri .tr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ri .dt{font-size:14px;font-weight:600}
+.ri .ac button{background:none;border:none;font-size:16px;color:#CBD5E1;padding:0 4px}
+.ri .dl{font-size:12px;color:var(--text2);display:flex;gap:10px;flex-wrap:wrap}
+.ri .dl .vl{color:var(--text);font-weight:600}
+.es{text-align:center;padding:40px 16px;color:var(--text2);background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+
+.mo{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);z-index:999999;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.mo.sh{display:flex}
+.mb{background:#fff;border-radius:16px;padding:20px;max-width:500px;width:100%;max-height:85vh;overflow-y:auto}
+.mb input{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:12px;text-align:center}
+.mb textarea{width:100%;min-height:150px;padding:12px 14px;font-size:13px;border:1.5px solid var(--border);border-radius:8px;font-family:monospace;margin-bottom:12px}
+.mb .ma{display:flex;gap:10px;margin-top:14px}
+.mb .ma button{flex:1;height:44px;border:none;border-radius:8px;font-size:15px;font-weight:600}
+.mb .ma .bc2{background:#F1F5F9;color:var(--text2)}
+.mb .ma .bo{background:var(--primary);color:#fff}
+.mb .mtitle{font-size:17px;font-weight:700;text-align:center;color:var(--primary);margin-bottom:14px}
+.salary-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.salary-form .full { grid-column: span 2; }
+.salary-form label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 4px; display: block; }
+.salary-form input { width: 100%; height: 40px; border: 1.5px solid var(--border); border-radius: 6px; text-align: center; font-weight: 600; }
+.salary-total { grid-column: span 2; background: var(--primary-light); padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px; font-weight: 700; color: var(--primary-dark); }
+.salary-total .num { font-size: 22px; color: var(--primary); }
+
+#dp .mb { max-width: 340px; }
+.dp-header { display: flex; justify-content: space-between; margin-bottom: 16px; font-weight: 700; color: var(--primary); align-items:center;}
+.dp-header button { background: var(--primary-light); border: none; width: 34px; height: 34px; border-radius: 50%; color: var(--primary-dark); font-size:18px;}
+.dp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.dp-grid div { height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 600; background: #F8FAFC; border: 1px solid #E2E8F0; }
+.dp-grid div.selected { background: var(--primary); color: #fff; }
+
+.tt2{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(15,23,42,.85);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;z-index:99999;opacity:0;transition:all .3s}
+.tt2.sh{opacity:1;transform:translateX(-50%) translateY(0)}
+.pc{display:none}
+@media print{
+    body *{visibility:hidden} .pc,.pc *{visibility:visible} .pc{display:block!important;position:absolute;top:0;left:0;width:100%;background:#fff}
+    .a4{width:210mm;min-height:297mm;padding:10mm;background:#fff;color:#000}
+    .sh2 table{width:100%;border-collapse:collapse} .sh2 th,.sh2 td{border:1px solid #000;padding:6px;text-align:center;font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);z-index:9999999;display:none;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)">
+    <div style="text-align:center;font-size:22px;font-weight:800;color:#2B7AFF;margin-bottom:6px">⛽ 油耗记账</div>
+    <div style="text-align:center;font-size:12px;color:#64748B;margin-bottom:22px">请输入车牌号登录</div>
+    <input type="text" id="loginPlate" placeholder="车牌号" style="width:100%;height:46px;padding:0 14px;font-size:16px;border:1.5px solid #E2E8F0;border-radius:8px;background:#FAFBFF;outline:none;margin-bottom:14px;text-align:center;font-weight:600">
+    <div id="loginError" style="color:#DC2626;font-size:13px;text-align:center;margin-bottom:10px;min-height:18px"></div>
+    <button id="loginBtn" style="width:100%;height:48px;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;">登 录</button>
+  </div>
+</div>
+
+<div class="app">
+<header class="hd">
+  <div class="row">
+    <div class="title"><span>⛽</span>油耗记账</div>
+    <div class="plate" id="pd"><span id="pt" class="ph">车牌</span></div>
+  </div>
+  <div class="storeStatus" id="storeStatus">💾 连接服务器中...</div>
+</header>
+
+<div class="scroll" id="sa">
+  <div class="content">
+    
+    <!-- 首页 -->
+    <div id="viewHome" class="view-page active">
+      <div style="text-align:center;">
+          <div class="month-badge-wrap">
+              <select id="viewMonthBadge" class="month-badge" onchange="changeViewMonth(this.value)"></select>
+          </div>
+      </div>
+      <div class="stats">
+        <div class="st"><div class="lb">本月次数</div><div class="vl" id="sc">0</div></div>
+        <div class="st"><div class="lb">本月油费</div><div class="vl" id="sam">0 <span class="u">元</span></div></div>
+        <div class="st"><div class="lb">本月升数</div><div class="vl" id="sli">0 <span class="u">L</span></div></div>
+        <div class="st"><div class="lb">本月里程</div><div class="vl" id="stm">0 <span class="u">km</span></div></div>
+        <div class="st"><div class="lb">本月油耗</div><div class="vl" id="sav">--</div></div>
+        <div class="st"><div class="lb">期末里程</div><div class="vl" id="sem">0 <span class="u">km</span></div></div>
+      </div>
+      
+      <div class="svc-card" onclick="showService()">
+          <div class="sc-left"><span class="sc-icon">🛠️</span><div><div class="sc-title">保养提醒</div><div class="sc-desc" id="svcDesc">点击设置保养参数</div></div></div>
+          <div class="sc-status" id="svcStatus">设置</div>
+      </div>
+      
+      <div class="salary-card" onclick="showSalary()">
+          <div class="sc-left"><span class="sc-icon">💰</span><div><div class="sc-title">工资结算</div><div class="sc-desc" id="salaryDesc">点击查看本月工资明细</div></div></div>
+          <div class="sc-status" id="salaryStatus">查看</div>
+      </div>
+      
+      <div class="tg">
+        <div class="tt">🎯 公司标准油耗对比</div>
+        <div class="tr" onclick="showTarget()"><span class="lb">公司标准（点击修改）</span><span class="vl" id="sfd">≤ 14.0</span></div>
+        <div class="tr"><span class="lb">当前平均油耗</span><span class="vl" id="tca">--</span></div>
+        <div class="tr"><span class="lb">与标准差距</span><span class="vl" id="tgp">--</span></div>
+        <div class="tr"><span class="lb">还需跑</span><span class="vl" id="tnk">--</span></div>
+        <div class="tst" id="tst">数据不足</div>
+      </div>
+    </div>
+
+    <!-- 记录 -->
+    <div id="viewRecord" class="view-page">
+      <div class="record-tabs">
+        <div class="record-tab active" onclick="switchRecordTab('fuel')">⛽ 加油</div>
+        <div class="record-tab" onclick="switchRecordTab('expense')">💸 费用</div>
+        <div class="record-tab" onclick="switchRecordTab('maint')">🛠️ 保养</div>
+      </div>
+      <div id="formFuel" class="record-content active">
+        <div class="fc">
+          <div class="fg"><label>📅 日期</label><div class="date-display" id="dateDisplay" onclick="openDatePicker()">2026年01月01日</div></div>
+          <div class="fr">
+            <div class="fg"><label>💰 金额 (元)</label><input type="number" id="ia" placeholder="0.00" step="0.01"></div>
+            <div class="fg"><label>⛽ 升数 (L)</label><input type="number" id="il" placeholder="0.00" step="0.01"></div>
+          </div>
+          <div class="fg"><label>📟 当前里程 (km)</label><input type="number" id="im" placeholder="0" step="1"></div>
+          <button class="bs" id="bSaveFuel" onclick="handleSaveFuel()">✓ 保存加油记录</button>
+        </div>
+      </div>
+      <div id="formExpense" class="record-content">
+        <div class="fc">
+          <div class="fg"><label>📅 日期</label><div class="date-display" id="dateDisplay2" onclick="openDatePicker()">2026年01月01日</div></div>
+          <div class="fg"><label>📝 费用类型</label><select id="expenseType"><option value="洗车费">洗车费</option><option value="停车费">停车费</option><option value="过路费">过路费</option><option value="维修费">维修费</option><option value="其他">其他费用</option></select></div>
+          <div class="fg"><label>💰 金额 (元)</label><input type="number" id="expenseAmount" placeholder="0.00" step="0.01"></div>
+          <div class="fg"><label>📝 备注 (可选)</label><input type="text" id="expenseNote" placeholder="例如：精洗一次"></div>
+          <button class="bs" onclick="saveExpense()">✓ 保存费用记录</button>
+        </div>
+      </div>
+      <div id="formMaint" class="record-content">
+        <div class="fc">
+          <div class="fg"><label>📅 日期</label><div class="date-display" id="dateDisplay3" onclick="openDatePicker()">2026年01月01日</div></div>
+          <div class="fg"><label>📟 保养时里程 (km)</label><input type="number" id="maintMileage" placeholder="0" step="1"></div>
+          <div class="fg"><label>🛠️ 保养内容</label><input type="text" id="maintContent" placeholder="例如：换机油机滤"></div>
+          <div class="fg"><label>💰 金额 (元)</label><input type="number" id="maintAmount" placeholder="0.00" step="0.01"></div>
+          <button class="bs" onclick="saveMaint()">✓ 保存保养记录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 我的 -->
+    <div id="viewMine" class="view-page">
+      <div class="mine-list" style="margin-bottom:12px">
+        <div class="mine-item" onclick="openReport()"><span>📄 鹏源A4报表</span><span class="arrow">›</span></div>
+        <div class="mine-item" onclick="showBackup()"><span>📤 备份数据</span><span class="arrow">›</span></div>
+        <div class="mine-item" onclick="showRestore()"><span>📥 恢复数据</span><span class="arrow">›</span></div>
+      </div>
+      <div class="month-header" onclick="toggleMonthHistory('historyBox', 'arrowHis')">
+        <div>📋 历史记录</div><div id="arrowHis">▼</div>
+      </div>
+      <div id="historyBox" class="month-body hidden">
+        <div class="rl" id="rl"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchView('viewHome', this)"><div class="icon">⛽</div>油耗</div>
+  <div class="nav-item" onclick="switchView('viewRecord', this)"><div class="icon">💸</div>费用</div>
+  <div class="nav-item center-btn" onclick="switchView('viewRecord', document.querySelectorAll('.nav-item')[1]); switchRecordTab('fuel')">
+      <div class="plus-circle">+</div><div class="nav-text">记一笔</div>
+  </div>
+  <div class="nav-item" onclick="openNearbyGasStations()"><div class="icon">🏪</div>加油站</div>
+  <div class="nav-item" onclick="switchView('viewMine', this)"><div class="icon">🐻</div>我的</div>
+</div>
+
+</div>
+
+<div class="mo" id="svcm"><div class="mb"><div class="mtitle">🛠️ 保养参数</div><label>上次里程 (km)</label><input type="number" id="svcLastMileage"><label>保养间隔 (km)</label><input type="number" id="svcMajorInterval" value="8000"><div class="ma"><button class="bc2" onclick="closeService()">取消</button><button class="bo" onclick="confirmService()">保存</button></div></div></div>
+<div class="mo" id="salarym"><div class="mb" style="max-width: 420px;"><div class="mtitle">💰 工资结算</div><div id="salaryMonthLabel" style="text-align:center;margin-bottom:10px;font-size:12px;color:#666"></div><div class="salary-form"><div><label>基本工资</label><input type="number" id="sBasic" value="4500"></div><div><label>住宿费</label><input type="number" id="sHousing" value="1000"></div><div><label>洗车费</label><input type="number" id="sWash" value="150"></div><div><label>保养费</label><input type="number" id="sMaintenance" value="0"></div><div><label>停车费</label><input type="number" id="sParking" value="0"></div><div><label>餐饮补助</label><input type="number" id="sMeal" value="0"></div><div><label>其他补助</label><input type="number" id="sOtherSubsidy" value="0"></div><div class="full"><label>平时加班(天)</label><input type="number" id="sOtCount" value="0"></div><div class="full"><label>加班单价</label><input type="number" id="sOtRate" value="200"></div><div class="full"><label>本月里程(km)</label><input type="text" id="sMileage" readonly></div><div class="full"><label>公里提成(0.25)</label><input type="text" id="sMileageComm" readonly></div><div class="salary-total">实发总计：<br><span class="num" id="sTotal">0.00</span> 元</div></div><div class="ma"><button class="bc2" onclick="closeSalary()">取消</button><button class="bo" onclick="confirmSalary()">保存</button></div></div></div>
+<div class="mo" id="dp"><div class="mb"><div class="dp-header"><button onclick="changeDPYear(-1)">«</button><button onclick="changeDPMonth(-1)">‹</button><span id="dpLabel"></span><button onclick="changeDPMonth(1)">›</button><button onclick="changeDPYear(1)">»</button></div><div class="dp-grid" id="dpGrid"></div><div class="ma"><button class="bc2" onclick="closeDatePicker()">取消</button></div></div></div>
+<div class="mo" id="tm"><div class="mb"><div class="mtitle">🎯 设置标准油耗</div><select id="tsel" size="7" style="width:100%;height:180px;font-size:16px;text-align:center;margin-bottom:10px"></select><div style="text-align:center;margin-bottom:10px" id="tch"></div><div class="ma"><button class="bc2" onclick="closeTarget()">取消</button><button class="bo" onclick="confirmTarget()">确认</button></div></div></div>
+<div class="mo" id="rm"><div class="mb" style="max-width:96vw;"><div style="display:flex;gap:8px;margin-bottom:12px"><select id="reportMonthSelect" onchange="switchReportMonth()" style="flex:1;height:40px;border-radius:8px;border:1px solid #ccc"></select><button class="bo" style="width:100px" onclick="printReport()">打印</button></div><div id="rc"></div><button class="bc2" style="width:100%;margin-top:10px;height:40px" onclick="closeReport()">关闭</button></div></div>
+<div class="mo" id="bkm"><div class="mb"><div class="mtitle">📤 备份</div><textarea id="bkText" readonly></textarea><div class="ma"><button class="bc2" onclick="closeBackup()">关闭</button><button class="bo" onclick="copyBackup()">复制</button></div></div></div>
+<div class="mo" id="rsm"><div class="mb"><div class="mtitle">📥 恢复</div><textarea id="rsText"></textarea><div class="ma"><button class="bc2" onclick="closeRestore()">取消</button><button class="bo" onclick="doRestore()">恢复</button></div></div></div>
+<div class="pc" id="pc"></div>
+<div class="tt2" id="tt2"></div>
+
 <script>
 (function(){
   var PK='fuel_offline_profile', DK='fuel_offline_data_';
@@ -58,1040 +319,95 @@
   window.__offlineProfile=_lp;
 })();
 </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>油耗记账</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--primary:#2B7AFF;--primary-dark:#1A5FCC;--primary-light:#F0F6FF;--bg:#F4F7FB;--card:#FFFFFF;--text:#1E293B;--text2:#64748B;--border:#E2E8F0;--radius:12px;--radius-sm:10px;--shadow:0 2px 6px rgba(0,0,0,0.03), 0 4px 12px rgba(43,122,255,0.05);--shadow-pressed:0 1px 3px rgba(0,0,0,0.06)}
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.4}
-.app{position:fixed;top:0;right:0;bottom:0;left:0;height:auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
-.hd{flex-shrink:0;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top, 0px));z-index:10;box-shadow:0 4px 14px rgba(43,122,255,0.2)}
-.hd .row{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:600px;margin:0 auto;min-height:36px}
-.hd .title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
-.plate{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:20px;cursor:pointer;font-size:13px;font-weight:600;min-height:32px;user-select:none;transition:all .2s}
-.plate:active{background:rgba(255,255,255,.3);transform:scale(.98)}
-.plate .ph{opacity:.7;font-weight:400;font-size:12px}
-.storeStatus{max-width:600px;margin:4px auto 0;font-size:11px;text-align:right;opacity:.8;padding-right:4px}
-.storeStatus.warn{color:#FEF08A}
-.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 20px}
-.content{max-width:480px;margin:0 auto}
-.month-badge-wrap {position:relative;display:inline-block;margin-bottom:10px;}
-.month-badge{display:inline-block;padding:6px 34px 6px 16px;background:var(--primary-light);color:var(--primary-dark);border-radius:20px;font-size:14px;font-weight:600;border:1.5px solid rgba(43,122,255,.25);outline:none;text-align:center;cursor:pointer;-webkit-appearance:none;appearance:none;box-shadow:0 2px 8px rgba(43,122,255,0.08);transition:all .2s}
-.month-badge:active {background:var(--primary);color:#fff;box-shadow:none}
-.month-badge-wrap::after {content:'▼';position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--primary);pointer-events:none}
-.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0}
-.st{background:var(--card);border-radius:var(--radius-sm);padding:10px 4px;box-shadow:var(--shadow);text-align:center;border:1px solid rgba(43,122,255,.06);display:flex;flex-direction:column;justify-content:center;min-height:64px;transition:transform .2s}
-.st:active{transform:scale(.97)}
-.st .lb{font-size:10px;color:var(--text2);font-weight:500;margin-bottom:4px;white-space:nowrap}
-.st .vl{font-size:14px;font-weight:700;color:var(--primary-dark);line-height:1.2;letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.st .vl .u{font-size:9px;font-weight:400;color:var(--primary-dark);opacity:.75;letter-spacing:0}
-.svc-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s}
-.svc-card:active{transform:scale(.98)}
-.svc-card .sc-left {display:flex; align-items:center; gap:12px;flex:1}
-.svc-card .sc-icon {font-size:26px}
-.svc-card .sc-title {font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px}
-.svc-card .sc-desc {font-size:14px; color:var(--text); font-weight:600; line-height:1.5}
-.svc-card .sc-status {font-size:14px; font-weight:700; padding:5px 12px; border-radius:14px; background:var(--primary-light); color:var(--primary-dark);white-space:nowrap;margin-left:10px}
-.svc-card .sc-status.warn {background:#FEF3C7; color:#D97706}
-.svc-card .sc-status.danger {background:#FEE2E2; color:#DC2626}
-.salary-card{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:transform .2s}
-.salary-card:active{transform:scale(.98)}
-.salary-card .sc-left {display:flex; align-items:center; gap:12px;flex:1}
-.salary-card .sc-icon {font-size:26px}
-.salary-card .sc-title {font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px}
-.salary-card .sc-desc {font-size:14px; color:var(--text); font-weight:600; line-height:1.5}
-.salary-card .sc-status {font-size:14px; font-weight:700; padding:5px 12px; border-radius:14px; background:#FEF3C7; color:#D97706;white-space:nowrap;margin-left:10px}
-.tg{background:var(--card);border-radius:var(--radius);padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);display:flex;flex-direction:column}
-.tg .tt{font-size:14px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.tg .tr{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px dashed #F1F5F9}
-.tg .tr:last-child{border-bottom:none}
-.tg .tr .lb{color:var(--text2)}
-.tg .tr .vl{font-weight:600}
-.tg .tr .vl.g{color:#059669;font-weight:700}
-.tg .tr .vl.r{color:#DC2626;font-weight:700}
-.tg .tr.ed{cursor:pointer;transition:background .2s;border-radius:6px}
-.tg .tr.ed:active{background:#F8FAFC}
-.tg .tst{font-size:12px;font-weight:600;text-align:center;padding:8px 0;border-radius:8px;background:var(--primary-light);color:var(--primary-dark);margin-top:8px}
-.tg .tst.ok{background:#DCFCE7;color:#166534}
-.tg .tst.bad{background:#FEE2E2;color:#991B1B}
-.fc{background:var(--card);border-radius:var(--radius);padding:16px 14px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06)}
-.fc .ft{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;color:var(--primary)}
-.fg{margin-bottom:10px}
-.fg label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:5px}
-.fg input{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-weight:500;-webkit-appearance:none;appearance:none;transition:all .2s}
-.fg input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(43,122,255,.1);background:#fff}
-.fg input::placeholder{color:#94A3B8;font-weight:400;font-size:15px}
-.date-display{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--text);font-weight:500;transition:all .2s}
-.date-display:active{background:#EFF6FF;border-color:var(--primary)}
-.date-display::after{content:'📅';font-size:18px}
-.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fp{margin-top:10px;padding:10px 14px;background:var(--primary-light);border-radius:8px;font-size:13px;text-align:center;color:var(--primary-dark);font-weight:600;min-height:38px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 10px}
-.fp .em{font-weight:400;color:var(--text2);font-size:13px}
-.bs{width:100%;height:48px;background:linear-gradient(135deg, var(--primary), var(--primary-dark));color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;margin-top:10px;box-shadow:0 4px 12px rgba(43,122,255,.25);transition:all .2s}
-.bs:active{transform:scale(.98);box-shadow:var(--shadow-pressed);background:var(--primary-dark)}
-.tabs{display:flex;margin-top:14px;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:1px solid rgba(43,122,255,.06)}
-.tb{flex:1;padding:13px 0;text-align:center;font-size:14px;font-weight:600;background:transparent;border:none;cursor:pointer;color:var(--text2);position:relative;transition:all .2s}
-.tb.act{color:var(--primary);background:var(--primary-light)}
-.tb.act::after{content:'';position:absolute;bottom:0;left:25%;width:50%;height:3px;background:var(--primary);border-radius:3px 3px 0 0}
-.tp{display:none;margin-top:12px}
-.tp.act{display:block}
-.rl{display:flex;flex-direction:column;gap:8px}
-.month-header{margin-top:0;margin-bottom:0;padding:12px 14px;background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;border-radius:10px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 12px rgba(43,122,255,.2);cursor:pointer;user-select:none;transition:all .2s}
-.month-header:active{transform:scale(.98)}
-.month-header .mh-left{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700}
-.month-header .mh-right{display:flex;align-items:center;gap:6px;font-size:11px;opacity:.95}
-.month-header .arrow{font-size:12px;transition:transform .2s;display:inline-block}
-.month-header.collapsed .arrow{transform:rotate(-90deg)}
-.month-body{display:flex;flex-direction:column;gap:8px;padding-top:4px}
-.month-body.hidden{display:none}
-.ri{background:var(--card);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06);border-left:4px solid var(--primary);transition:transform .2s}
-.ri:active{transform:scale(.98)}
-.ri .tr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
-.ri .dt{font-size:14px;font-weight:600}
-.ri .ac{display:flex;align-items:center;gap:4px}
-.ri .ac button{background:none;border:none;font-size:16px;cursor:pointer;padding:0 4px;line-height:1;color:#CBD5E1;transition:color .2s}
-.ri .ac button:active{color:var(--primary)}
-.ri .fb{background:var(--primary-light);color:var(--primary-dark);padding:2px 10px;border-radius:14px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
-.ri .fb.na{background:#F1F5F9;color:var(--text2);font-weight:400}
-.ri .dl{font-size:12px;color:var(--text2);margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 12px;line-height:1.5}
-.ri .dl .lb{color:var(--text2)}
-.ri .dl .vl{color:var(--text);font-weight:600}
-.es{text-align:center;padding:40px 16px;color:var(--text2);background:var(--card);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
-.es .bi{font-size:40px;display:block;margin-bottom:10px}
-.es .ht{font-size:12px;opacity:.7;margin-top:6px}
-.ml{display:flex;flex-direction:column;gap:10px}
-.mi{background:var(--card);border-radius:var(--radius-sm);padding:14px 16px;box-shadow:var(--shadow);border-left:4px solid var(--primary)}
-.mi .mlb{font-size:15px;font-weight:700;margin-bottom:10px}
-.mi .ms{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
-.mi .ms .sl{font-size:13px;color:var(--text2);display:flex;justify-content:space-between;border-bottom:1px dashed #F1F5F9;padding:4px 0}
-.mi .ms .sl .nm{font-weight:600;color:var(--text)}
-.mi .ms .sl .hn{font-weight:700;color:var(--primary-dark)}
-.mi .ms .sl .fe{color:#059669;font-weight:700;font-size:13px}
-.ba{margin-top:16px;display:flex;justify-content:center;gap:10px;padding-bottom:10px;flex-wrap:wrap}
-.ba .bc{background:none;border:none;font-size:12px;color:var(--text2);padding:6px 12px;cursor:pointer;opacity:.6;text-decoration:underline}
-.ba .bp{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(43,122,255,.2);transition:all .2s}
-.ba .bp:active{transform:scale(.96)}
-.ba .bx{background:#059669;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(5,150,105,.2);transition:all .2s}
-.ba .bx:active{transform:scale(.96)}
-.ba .br{background:#F59E0B;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(245,158,11,.2);transition:all .2s}
-.ba .br:active{transform:scale(.96)}
-.tt2{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(80px);background:rgba(15,23,42,.85);color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;z-index:99999;opacity:0;transition:all .3s cubic-bezier(0.175, 0.885, 0.32, 1.275);pointer-events:none;max-width:90%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.15)}
-.tt2.sh{opacity:1;transform:translateX(-50%) translateY(0)}
-.mo{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);z-index:999999;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
-.mo.sh{display:flex}
-.mb{background:#fff;border-radius:16px;padding:24px 20px 20px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,0.2)}
-.mb input{width:100%;height:44px;padding:0 14px;font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;text-align:center;margin-bottom:12px;font-weight:500}
-.mb input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(43,122,255,.1);background:#fff}
-.mb textarea{width:100%;min-height:160px;padding:12px 14px;font-size:13px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-family:monospace;margin-bottom:12px;resize:vertical}
-.mb textarea:focus{border-color:var(--primary);background:#fff}
-.mb .ma{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-.mb .ma button{flex:1;min-width:80px;height:44px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
-.mb .ma button:active{transform:scale(.97)}
-.mb .ma .bc2{background:#F1F5F9;color:var(--text2)}
-.mb .ma .bo{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(43,122,255,.25)}
-.mb .ma .bp2{background:#059669;color:#fff}
-.mb .mtitle{font-size:17px;font-weight:700;text-align:center;color:var(--primary);margin-bottom:14px}
-.mb .mhint{font-size:12px;color:var(--text2);margin-bottom:12px;text-align:center;line-height:1.6}
-.ts{width:100%;height:180px;font-size:18px;font-weight:700;border:1.5px solid var(--primary);border-radius:8px;background:#FAFBFF;text-align:center;padding:8px;color:var(--primary-dark);outline:none}
-.tt3{font-size:12px;color:var(--text2);text-align:center;margin-top:6px}
-.tc{font-size:14px;font-weight:600;color:var(--primary);text-align:center;margin-top:10px}
-.pw{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px}
-#dp .mb { max-width: 360px; padding: 20px 16px; }
-.dp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; font-weight: 700; font-size: 16px; color: var(--primary); }
-.dp-header button { background: var(--primary-light); border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; transition: all .1s; }
-.dp-header button:active { background: var(--primary); color: #fff; transform: scale(.9); }
-.dp-header span { flex: 1; text-align: center; letter-spacing: 1px; }
-.dp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.dp-grid div { height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; background: #F8FAFC; color: var(--text); border: 1px solid #E2E8F0; transition: all .1s; }
-.dp-grid div:active { transform: scale(.92); }
-.dp-grid div.selected { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 2px 8px rgba(43,122,255,0.3); }
-.dp-grid div.empty { background: transparent; border: none; cursor: default; }
-.salary-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.salary-form .full { grid-column: span 2; }
-.salary-form label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 4px; display: block; }
-.salary-form input { width: 100%; height: 40px; padding: 0 10px; font-size: 15px; border: 1.5px solid var(--border); border-radius: 6px; background: #FAFBFF; outline: none; font-weight: 600; text-align: center; }
-.salary-form input:focus { border-color: var(--primary); background: #fff; }
-.salary-form .sub-title { grid-column: span 2; font-size: 14px; font-weight: 700; color: var(--primary); margin-top: 10px; padding-bottom: 4px; border-bottom: 1px solid #eee; }
-.salary-total { grid-column: span 2; background: var(--primary-light); padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px; font-size: 15px; font-weight: 700; color: var(--primary-dark); }
-.salary-total .num { font-size: 22px; font-weight: 800; color: var(--primary); }
-.ot-toggle { display: flex; gap: 6px; margin-bottom: 4px; }
-.ot-toggle button { flex: 1; height: 32px; border: 1.5px solid var(--border); background: #FAFBFF; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text2); font-weight: 600; transition: all .2s; }
-.ot-toggle button.act { background: var(--primary); border-color: var(--primary); color: #fff; }
-.ot-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sh2{width:700px;background:#fff;color:#000;font-family:"PingFang SC","Microsoft YaHei","SimSun",serif}
-.st2{text-align:center;font-size:18px;font-weight:700;letter-spacing:4px;padding:10px 0;color:#000}
-.sm{font-size:13px;font-weight:700;padding:4px 0;color:#000}
-.sh2 table{width:100%;border-collapse:collapse;table-layout:fixed}
-.sh2 table.it{font-size:12px}
-.sh2 table.it td{border:1px solid #000;padding:4px 6px;height:24px;text-align:center;color:#000}
-.sh2 table.it td.lb{background:#f5f5f5;font-weight:600;width:11%;white-space:nowrap}
-.sh2 table.it td.vl{width:14%;font-weight:500}
-.sh2 table.mt{font-size:11px}
-.sh2 table.mt th,.sh2 table.mt td{border:1px solid #000;padding:2px;height:20px;text-align:center;color:#000;word-break:keep-all;overflow:hidden}
-.sh2 table.mt th{font-weight:700;font-size:10px;background:#f5f5f5;height:30px;line-height:1.15}
-.sh2 table.mt tr.tot td{font-weight:700;background:#f0f0f0}
-.sh2 table.mt tr.tot td.gt{text-align:center;background:#f0f0f0}
-.sch{text-align:center;font-size:11px;color:#999;margin-top:4px}
-.report-month-selector{display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--primary-light);border-radius:10px;margin-bottom:14px;border:1.5px solid var(--primary)}
-.report-month-selector label{font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap}
-.report-month-selector select{flex:1;height:40px;padding:0 10px;font-size:14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-weight:600;color:var(--text);-webkit-appearance:none;appearance:none;cursor:pointer;text-align:center;outline:none}
-.report-title-input{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--primary-light);border-radius:10px;margin-bottom:14px;border:1.5px solid var(--primary)}
-.report-title-input label{font-size:13px;font-weight:700;color:var(--primary);white-space:nowrap}
-.report-title-input input{flex:1;min-width:0;height:40px;padding:0 10px;font-size:14px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-weight:600;color:var(--text);outline:none;margin-bottom:0;text-align:left}
-.report-title-input input:focus{border-color:var(--primary)}
-.pc{display:none}
-@media print{
-    @page{size:A4 portrait;margin:0}
-    body *{visibility:hidden}
-    .pc,.pc *{visibility:visible}
-    .pc{display:block!important;position:absolute;top:0;left:0;width:100%;background:#fff}
-    .a4{width:210mm;min-height:297mm;padding:10mm 10mm 8mm 10mm;box-sizing:border-box;page-break-after:always;background:#fff;color:#000;font-family:"PingFang SC","Microsoft YaHei","SimSun",serif;display:flex;flex-direction:column}
-    .a4:last-child{page-break-after:auto}
-    .a4 .st2{text-align:center;font-size:18pt;font-weight:700;letter-spacing:4px;margin-bottom:4mm;color:#000}
-    .a4 .sm{font-size:11pt;font-weight:700;margin-bottom:2mm}
-    .a4 table.it{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:0}
-    .a4 table.it td{border:1px solid #000;padding:1.5mm 1mm;height:7mm;text-align:center;box-sizing:border-box}
-    .a4 table.it td.lb{background:#f5f5f5;font-weight:600;white-space:nowrap}
-    .a4 table.mt{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed}
-    .a4 table.mt th,.a4 table.mt td{border:1px solid #000;padding:.5mm;height:6mm;text-align:center;box-sizing:border-box;word-break:keep-all;overflow:hidden}
-    .a4 table.mt th{background:#f5f5f5;font-weight:700;font-size:9pt;line-height:1.15;height:9mm}
-    .a4 table.mt tr.tot td{font-weight:700;background:#f0f0f0}
-}
-@media(max-width:400px){
-    .tg .tr{font-size:12px}
-    .stats{gap:6px}
-    .st .vl{font-size:13px}
-    .st .lb{font-size:9px}
-}
-
-
-/* ===== A4 报表 ===== */
-#a4view{position:fixed;inset:0;background:#E9EDF3;z-index:9999;overflow:auto;display:none;padding:14px 8px 84px}
-#a4view.sh{display:block}
-.a4sheet{background:#fff;width:210mm;max-width:100%;margin:0 auto;padding:12mm;box-shadow:0 4px 20px rgba(0,0,0,.15);color:#000;font-size:12px;line-height:1.5;min-height:180mm}
-.a4sheet h1{font-size:18px;text-align:center;letter-spacing:2px;margin-bottom:2px}
-.a4sheet .asub{text-align:center;font-size:11px;color:#333;margin-bottom:10px}
-.a4sheet .ameta{display:flex;justify-content:space-between;font-size:11px;margin:8px 0;padding-bottom:6px;border-bottom:1px solid #333}
-.a4sheet .asec{font-size:12px;font-weight:700;margin:12px 0 4px}
-.a4sheet table{width:100%;border-collapse:collapse;font-size:10.5px}
-.a4sheet th,.a4sheet td{border:1px solid #333;padding:3px 5px;text-align:center}
-.a4sheet th{background:#F2F2F2;font-weight:700}
-.a4sheet td.l{text-align:left}
-.a4sheet tr.atot td{font-weight:700;background:#FAFAFA}
-.a4sheet .asign{display:flex;justify-content:space-between;margin-top:22px;font-size:11px}
-.a4bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:10px;padding:10px 14px;background:#fff;border-top:1px solid #DDE3EC;z-index:10000}
-.a4bar button{flex:1;height:44px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
-.a4bar .p1{background:var(--primary);color:#fff}
-.a4bar .p2{background:#EEF2F8;color:#475569}
-@media print{
- @page{size:A4;margin:12mm}
- body{background:#fff!important}
- .app,.mo,#navbar,.a4bar,#a4view .a4bar{display:none!important}
- #a4view{position:static!important;inset:auto!important;display:block!important;overflow:visible!important;background:#fff!important;padding:0!important}
- .a4sheet{box-shadow:none!important;margin:0!important;width:auto!important;max-width:none!important;min-height:0!important;padding:0!important}
-}
-
-/* ===== 小熊风格扩展样式 ===== */
-.navbar{position:relative;width:100%;flex:0 0 auto;height:calc(56px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:#fff;border-top:1px solid #E8EDF5;display:flex;align-items:flex-start;padding-top:6px;z-index:9000;box-shadow:0 -2px 12px rgba(15,23,42,.06)}
-.navbar .nv{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;color:#94A3B8;font-size:11px;cursor:pointer;padding:4px 0;user-select:none}
-.navbar .nv .ic{font-size:20px;line-height:1}
-.navbar .nv.act{color:var(--primary);font-weight:700}
-.navbar .nv.add{flex:0 0 76px}
-.navbar .nv.add .ic{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#34D399,#10B981);color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;margin-top:-16px;box-shadow:0 6px 16px rgba(16,185,129,.35)}
-.view{display:none}
-.view.act{display:block}
-.vcard{background:var(--card);border-radius:14px;padding:14px 16px;margin-top:12px;box-shadow:var(--shadow);border:1px solid rgba(43,122,255,.06)}
-.vcard .vct{font-size:15px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.kpirow{display:flex;gap:8px}
-.kpi{flex:1;text-align:center;padding:10px 4px;background:#F8FAFF;border-radius:10px}
-.kpi .v{font-size:17px;font-weight:800;color:var(--primary-dark);line-height:1.2}
-.kpi .l{font-size:11px;color:var(--text2);margin-top:3px}
-.vli{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #F1F5F9;gap:8px}
-.vli:last-child{border-bottom:none}
-.vli .lm{font-size:14px;font-weight:600}
-.vli .ls{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.4}
-.vli .ra{font-size:15px;font-weight:800;color:#DC2626;white-space:nowrap}
-.vempty{text-align:center;color:#94A3B8;padding:18px 0;font-size:13px}
-.vbtn{display:inline-flex;align-items:center;gap:4px;padding:7px 13px;border-radius:10px;background:var(--primary);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
-.vbtn.g{background:#10B981}
-.vmenu{display:flex;align-items:center;gap:10px;padding:13px 2px;border-bottom:1px solid #F1F5F9;cursor:pointer}
-.vmenu:last-child{border-bottom:none}
-.vmenu .vic{font-size:19px;width:24px;text-align:center}
-.vmenu .vmm{flex:1}
-.vmenu .vmt{font-size:15px;font-weight:600}
-.vmenu .vms{font-size:11px;color:var(--text2);margin-top:2px}
-.vmenu .var{color:#CBD5E1;font-size:16px}
-.fg select{width:100%;height:44px;padding:0 14px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;font-weight:500;-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,#94A3B8 50%),linear-gradient(135deg,#94A3B8 50%,transparent 50%);background-position:calc(100% - 18px) 20px,calc(100% - 13px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-.mb select{width:100%;height:44px;padding:0 14px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:#FAFBFF;outline:none;margin-bottom:12px;font-weight:500;-webkit-appearance:none;appearance:none}
-.mb .mlb2{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px}
-
-</style>
-</head>
-<body>
-
-<div id="loginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);z-index:9999999;display:none;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)">
-    <div style="text-align:center;font-size:22px;font-weight:800;color:#2B7AFF;margin-bottom:6px">⛽ 油耗记账</div>
-    <div style="text-align:center;font-size:12px;color:#64748B;margin-bottom:22px">请输入车牌号登录</div>
-    <input type="text" id="loginPlate" placeholder="车牌号（如 沪A88888）" autocomplete="username" style="width:100%;height:46px;padding:0 14px;font-size:16px;border:1.5px solid #E2E8F0;border-radius:8px;background:#FAFBFF;outline:none;margin-bottom:14px;text-align:center;font-weight:600">
-    <div id="loginError" style="color:#DC2626;font-size:13px;text-align:center;margin-bottom:10px;min-height:18px"></div>
-    <button id="loginBtn" style="width:100%;height:48px;background:linear-gradient(135deg,#2B7AFF,#1A5FCC);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(43,122,255,.25)">登 录</button>
-    <div style="text-align:center;font-size:11px;color:#94A3B8;margin-top:14px">车牌由管理员登记后方可登录</div>
-  </div>
-</div>
-
-<div class="app">
-<header class="hd">
-<div class="row">
-<div class="title"><span>⛽</span>油耗记账</div>
-<div class="plate" id="pd" onclick="showPlate()"><span id="pt" class="ph">车牌</span><span style="font-size:12px;opacity:.8">✎</span></div>
-</div>
-<div class="storeStatus" id="storeStatus">💾 连接服务器中...</div>
-</header>
-<div class="scroll" id="sa">
-<div class="content">
-<div class="view act" id="viewHome">
-<div style="text-align:center;">
-    <div class="month-badge-wrap">
-        <select id="viewMonthBadge" class="month-badge" onchange="changeViewMonth(this.value)"></select>
-    </div>
-</div>
-<div class="stats">
-<div class="st"><div class="lb">本月次数</div><div class="vl" id="sc">0</div></div>
-<div class="st"><div class="lb">本月油费</div><div class="vl" id="sam">0 <span class="u">元</span></div></div>
-<div class="st"><div class="lb">本月升数</div><div class="vl" id="sli">0 <span class="u">L</span></div></div>
-<div class="st"><div class="lb">本月里程</div><div class="vl" id="stm">0 <span class="u">km</span></div></div>
-<div class="st"><div class="lb">本月油耗</div><div class="vl" id="sav">--</div></div>
-<div class="st"><div class="lb">期末里程</div><div class="vl" id="sem">0 <span class="u">km</span></div></div>
-</div>
-<div class="svc-card" onclick="showService()">
-    <div class="sc-left">
-        <span class="sc-icon">🛠️</span>
-        <div>
-            <div class="sc-title">保养提醒</div>
-            <div class="sc-desc" id="svcDesc">点击设置保养参数</div>
-        </div>
-    </div>
-    <div class="sc-status" id="svcStatus">设置</div>
-</div>
-<div class="salary-card" onclick="showSalary()">
-    <div class="sc-left">
-        <span class="sc-icon">💰</span>
-        <div>
-            <div class="sc-title">工资结算</div>
-            <div class="sc-desc" id="salaryDesc">点击查看本月工资明细</div>
-        </div>
-    </div>
-    <div class="sc-status" id="salaryStatus">查看</div>
-</div>
-<div class="tg">
-<div class="tt">🎯 公司标准油耗对比</div>
-<div class="tr ed" onclick="showTarget()">
-<span class="lb">公司标准 <span style="font-size:11px;color:var(--primary);">（点击修改）</span></span>
-<span class="vl" id="sfd">≤ 14.0 L/100km</span>
-</div>
-<div class="tr"><span class="lb">当前平均油耗</span><span class="vl" id="tca">--</span></div>
-<div class="tr"><span class="lb">与标准差距</span><span class="vl" id="tgp">--</span></div>
-<div class="tr"><span class="lb">还需跑</span><span class="vl" id="tnk">--</span></div>
-<div class="tst" id="tst">数据不足</div>
-</div>
-<div class="fc">
-<div class="ft">📝 添加加油记录</div>
-<div class="fg">
-    <label>📅 日期</label>
-    <div class="date-display" id="dateDisplay" onclick="openDatePicker()">2026年01月01日</div>
-</div>
-<div class="fr">
-<div class="fg"><label>💰 油费 (元)</label><input type="number" id="ia" placeholder="可选" step="0.01"></div>
-<div class="fg"><label>⛽ 升数 (L)</label><input type="number" id="il" placeholder="可选" step="0.01"></div>
-</div>
-<div class="fg"><label>📟 当前里程 (km)</label><input type="number" id="im" placeholder="可选" step="1"></div>
-<div class="fg"><label>🏪 加油站（可选）</label><select id="istation"><option value="">不选</option></select></div>
-<div class="fp" id="fp"><span class="em">至少填一项，自动计算油耗（需里程+升数）</span></div>
-<button class="bs" id="bSave">✓ 保存记录</button>
-</div>
-<div class="tabs">
-<button class="tb act" data-t="r">📋 历史记录</button>
-<button class="tb" data-t="s">📊 月度汇总</button>
-</div>
-<div class="tp act" id="pr"><div class="rl" id="rl"></div></div>
-<div class="tp" id="ps"><div class="ml" id="ml"></div></div>
-<div class="ba">
-<button class="bp" onclick="openReport()">📄 鹏源报表</button>
-<button class="bx" onclick="showBackup()">📤 备份</button>
-<button class="br" onclick="showRestore()">📥 恢复</button>
-</div>
-</div>
-<div id="viewExpenses" class="view">
-<div class="vcard">
-<div class="vct"><span>&#128176; 费用总览</span><span style="font-size:12px;color:var(--text2)" id="expMonthLabel2"></span></div>
-<div class="kpirow">
-<div class="kpi"><div class="v" id="expTotal">0.00</div><div class="l">本月合计(元)</div></div>
-<div class="kpi"><div class="v" id="expCount">0</div><div class="l">笔数</div></div>
-<div class="kpi"><div class="v" id="expFuel">0.00</div><div class="l">其中油费(元)</div></div>
-</div>
-</div>
-<div class="vcard">
-<div class="vct"><span>&#128193; 按类型统计</span><button class="vbtn" onclick="showExpenseForm()">&#65291; 记费用</button></div>
-<div id="expByType"></div>
-</div>
-<div class="vcard">
-<div class="vct"><span>&#129534; 费用明细</span><span style="font-size:12px;color:var(--text2)">本月</span></div>
-<div id="expList"></div>
-</div>
-</div>
-<div id="viewStations" class="view">
-<div class="vcard" onclick="openNearbyGasStations()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-<div style="display:flex;align-items:center;gap:10px">
-<span style="font-size:26px">&#128205;</span>
-<div><div style="font-size:15px;font-weight:700">附近优惠加油站</div><div style="font-size:12px;color:var(--text2);margin-top:4px">定位后打开高德地图看周边油站和油价</div></div>
-</div>
-<div style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap">去加油 &#8250;</div>
-</div>
-<div class="vcard">
-<div class="vct"><span>&#9981; 我常去的加油站</span><button class="vbtn g" onclick="showStationForm()">&#65291; 添加</button></div>
-<div id="stationList"></div>
-<div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6">离线版拿不到团油/滴滴的实时油价，这里是自建台账：把常去站的挂牌价和优惠填上，加油时选这个站，自动算每笔省了多少。</div>
-</div>
-<div class="vcard">
-<div class="vct"><span>&#128184; 优惠统计</span></div>
-<div class="kpirow">
-<div class="kpi"><div class="v" id="saveTotal">0.00</div><div class="l">累计省(元)</div></div>
-<div class="kpi"><div class="v" id="saveCount">0</div><div class="l">加油次数</div></div>
-<div class="kpi"><div class="v" id="saveAvg">0.00</div><div class="l">平均每次省(元)</div></div>
-</div>
-</div>
-</div>
-<div id="viewMine" class="view">
-<div class="vcard">
-<div class="vct"><span>&#128100; <span id="minePlate">未设置车牌</span></span></div>
-<div class="kpirow">
-<div class="kpi"><div class="v" id="mineDays">0</div><div class="l">使用天数</div></div>
-<div class="kpi"><div class="v" id="mineRecs">0</div><div class="l">加油记录</div></div>
-<div class="kpi"><div class="v" id="mineExps">0</div><div class="l">费用记录</div></div>
-</div>
-<div class="kpirow" style="margin-top:10px">
-<div class="kpi"><div class="v" id="mineKm">0</div><div class="l">累计里程(km)</div></div>
-<div class="kpi"><div class="v" id="mineCost">0</div><div class="l">累计花费(元)</div></div>
-<div class="kpi"><div class="v" id="mineFuel">--</div><div class="l">累计油耗</div></div>
-</div>
-</div>
-<div class="vcard">
-<div class="vct"><span>&#9881; 设置与管理</span></div>
-<div class="vmenu" onclick="showPlate()"><span class="vic">&#128663;</span><div class="vmm"><div class="vmt">车辆信息</div><div class="vms">车牌号、驾驶员</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="showTarget()"><span class="vic">&#127919;</span><div class="vmm"><div class="vmt">油耗标准</div><div class="vms" id="mineTarget">&#8804;14.0 L/100km</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="showService()"><span class="vic">&#128736;</span><div class="vmm"><div class="vmt">保养提醒</div><div class="vms" id="mineServiceDesc">点击设置</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="exportA4()"><span class="vic">&#128196;</span><div class="vmm"><div class="vmt">导出 A4 报表</div><div class="vms">按 A4 打印或存 PDF</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="showBackup()"><span class="vic">&#128190;</span><div class="vmm"><div class="vmt">备份</div><div class="vms">生成备份串，粘贴保存</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="showRestore()"><span class="vic">&#128229;</span><div class="vmm"><div class="vmt">恢复</div><div class="vms">粘贴备份串还原数据</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="openReport()"><span class="vic">&#128196;</span><div class="vmm"><div class="vmt">鹏源报表</div><div class="vms">按月出表、可打印</div></div><span class="var">&#8250;</span></div>
-<div class="vmenu" onclick="showSalary()"><span class="vic">&#128176;</span><div class="vmm"><div class="vmt">工资结算</div><div class="vms">按月核算实发</div></div><span class="var">&#8250;</span></div>
-</div>
-</div>
-</div>
-</div>
-<div class="navbar" id="navbar">
-<div class="nv act" data-v="home" onclick="switchView('home')"><span class="ic">&#9981;</span><span>油耗</span></div>
-<div class="nv" data-v="expenses" onclick="switchView('expenses')"><span class="ic">&#128176;</span><span>费用</span></div>
-<div class="nv add" onclick="showAddMenu()"><span class="ic">&#65291;</span><span style="margin-top:2px">记一笔</span></div>
-<div class="nv" data-v="stations" onclick="switchView('stations')"><span class="ic">&#127978;</span><span>加油站</span></div>
-<div class="nv" data-v="mine" onclick="switchView('mine')"><span class="ic">&#128059;</span><span>我的</span></div>
-</div>
-<div class="mo" id="addm">
-<div class="mb" style="max-width:330px;padding:22px 18px">
-<div class="mtitle">记一笔</div>
-<div class="kpirow" style="gap:10px">
-<button class="vbtn" style="flex:1;height:66px;justify-content:center;font-size:15px;flex-direction:column" onclick="goAddFuel()"><span style="font-size:22px">&#9981;</span><span>加油</span></button>
-<button class="vbtn g" style="flex:1;height:66px;justify-content:center;font-size:15px;flex-direction:column" onclick="goAddExpense()"><span style="font-size:22px">&#129534;</span><span>费用</span></button>
-</div>
-<div class="ma"><button class="bc2" onclick="closeAddMenu()">取消</button></div>
-</div>
-</div>
-<div class="mo" id="exm">
-<div class="mb" style="max-width:380px">
-<div class="mtitle" id="exTitle">&#128176; 记一笔费用</div>
-<div><span class="mlb2">费用类型</span><select id="exType"></select></div>
-<div><span class="mlb2">日期</span><input type="date" id="exDate"></div>
-<div><span class="mlb2">金额 (元)</span><input type="number" id="exAmount" step="0.01" placeholder="例如 30"></div>
-<div><span class="mlb2">备注（可选）</span><input type="text" id="exNote" placeholder="例如 郑州东站停车"></div>
-<div class="ma"><button class="bc2" onclick="closeExpenseForm()">取消</button><button class="bo" onclick="saveExpense()">保存</button></div>
-</div>
-</div>
-<div class="mo" id="stm2">
-<div class="mb" style="max-width:380px">
-<div class="mtitle">&#127978; 加油站</div>
-<div><span class="mlb2">名称</span><input type="text" id="stName" placeholder="例如 涡阳涡北加油站"></div>
-<div><span class="mlb2">油号</span><select id="stFuel"><option>92#</option><option>95#</option><option>98#</option><option>0#柴油</option></select></div>
-<div><span class="mlb2">挂牌价 (元/L)</span><input type="number" id="stPrice" step="0.01" placeholder="例如 7.60"></div>
-<div><span class="mlb2">优惠 (元/L)</span><input type="number" id="stDiscount" step="0.01" placeholder="例如 0.71"></div>
-<div><span class="mlb2">备注（可选）</span><input type="text" id="stNote" placeholder="例如 团油平台，10km内"></div>
-<div class="ma"><button class="bc2" onclick="closeStationForm()">取消</button><button class="bo" onclick="saveStation()">保存</button></div>
-</div>
-</div>
-</div>
-<div id="a4view">
-<div class="a4sheet" id="a4sheet"></div>
-<div class="a4bar">
-<button class="p1" onclick="printA4()">打印 / 存为 PDF</button>
-<button class="p2" onclick="closeA4()">关闭</button>
-</div>
-</div>
-<div class="mo" id="svcm">
-    <div class="mb">
-        <div class="mtitle">🛠️ 保养参数设置</div>
-        <div class="tt3" style="margin-bottom:14px">请输入上次保养的里程和保养周期</div>
-        <label style="font-size:13px;font-weight:600;color:var(--primary);display:block;margin-bottom:6px">上次保养时的里程 (km)：</label>
-        <input type="number" id="svcLastMileage" placeholder="例如：38000" step="1">
-        <label style="font-size:13px;font-weight:600;color:var(--primary);display:block;margin-bottom:6px">保养间隔 (km)：</label>
-        <input type="number" id="svcMajorInterval" placeholder="例如：8000" step="1" value="8000">
-        <div class="ma"><button class="bc2" onclick="closeService()">取消</button><button class="bo" onclick="confirmService()">保存设置</button></div>
-    </div>
-</div>
-
-<div class="mo" id="salarym">
-    <div class="mb" style="max-width: 420px; padding: 20px 16px;">
-        <div class="mtitle">💰 工资结算明细</div>
-        <div class="tt3" style="margin-bottom:12px" id="salaryMonthLabel"></div>
-        <div class="salary-form">
-            <div><label>基本工资 (元)</label><input type="number" id="sBasic" value="4500" step="1" oninput="calcSalaryTotal()"></div>
-            <div><label>住宿费 (元)</label><input type="number" id="sHousing" value="1000" step="1" oninput="calcSalaryTotal()"></div>
-            <div><label>洗车费 (元)</label><input type="number" id="sWash" value="150" step="1" oninput="calcSalaryTotal()"></div>
-            <div><label>保养费 (元)</label><input type="number" id="sMaintenance" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
-            <div><label>停车费 (元)</label><input type="number" id="sParking" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
-            <div><label>餐饮补助 (元)</label><input type="number" id="sMeal" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
-            <div><label>其他补助 (元)</label><input type="number" id="sOtherSubsidy" value="0" step="1" placeholder="填0" oninput="calcSalaryTotal()"></div>
-            <div class="sub-title">平时加班</div>
-            <div class="full">
-                <div class="ot-toggle" id="otToggleRegular">
-                    <button type="button" class="act" onclick="setOtType('regular','day')">按天</button>
-                    <button type="button" onclick="setOtType('regular','hour')">按小时</button>
-                </div>
-            </div>
-            <div class="full ot-inputs" id="otInputsRegular">
-                <div><label id="otRegLabel">天数</label><input type="number" id="sOtCount" value="0" step="1" oninput="calcSalaryTotal()"></div>
-                <div><label id="otRegRateLabel">单价 (元/天)</label><input type="number" id="sOtRate" value="200" step="1" oninput="calcSalaryTotal()"></div>
-            </div>
-            <div class="sub-title">节假日加班</div>
-            <div class="full">
-                <div class="ot-toggle" id="otToggleHoliday">
-                    <button type="button" class="act" onclick="setOtType('holiday','day')">按天</button>
-                    <button type="button" onclick="setOtType('holiday','hour')">按小时</button>
-                </div>
-            </div>
-            <div class="full ot-inputs" id="otInputsHoliday">
-                <div><label id="otHolLabel">天数</label><input type="number" id="sHolCount" value="0" step="1" oninput="calcSalaryTotal()"></div>
-                <div><label id="otHolRateLabel">单价 (元/天)</label><input type="number" id="sHolRate" value="200" step="1" oninput="calcSalaryTotal()"></div>
-            </div>
-            <div class="full"><label>节假日倍数</label><input type="number" id="sHolMulti" value="3" step="1" oninput="calcSalaryTotal()"></div>
-            <div class="sub-title">自动计算</div>
-            <div class="full"><label>本月里程 (km)</label><input type="text" id="sMileage" value="0" readonly style="background:#F1F5F9;color:var(--text2);"></div>
-            <div class="full"><label>每公里补贴 (元/km)</label><select id="sKmRate" onchange="calcSalaryTotal()" style="width:100%;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;font-size:15px;"></select></div>
-            <div class="full"><label>公里提成</label><input type="text" id="sMileageComm" value="0 元" readonly style="background:#F1F5F9;color:var(--text2);"></div>
-            <div class="salary-total">实发总计：<br><span class="num" id="sTotal">0.00</span> 元</div>
-        </div>
-        <div class="ma"><button class="bc2" onclick="closeSalary()">取消</button><button class="bo" onclick="confirmSalary()">保存工资单</button></div>
-    </div>
-</div>
-
-<div class="mo" id="dp">
-    <div class="mb">
-        <div class="mtitle">选择日期</div>
-        <div class="dp-header">
-            <button onclick="changeDPYear(-1)">«</button>
-            <button onclick="changeDPMonth(-1)">‹</button>
-            <span id="dpLabel"></span>
-            <button onclick="changeDPMonth(1)">›</button>
-            <button onclick="changeDPYear(1)">»</button>
-        </div>
-        <div class="dp-grid" id="dpGrid"></div>
-        <div class="ma"><button class="bc2" onclick="closeDatePicker()">取消</button></div>
-    </div>
-</div>
-
-<div class="mo" id="pm">
-<div class="mb">
-<div class="mtitle">🚗 车牌与数据恢复</div>
-<div class="tt3" style="margin-bottom:12px">车牌由管理员统一分配，如需更换请联系管理员</div>
-<input type="text" id="pi" readonly style="background:#F1F5F9;color:var(--text2);" maxlength="20">
-<div class="mhint" style="text-align:left; margin-top:6px; margin-bottom:6px; font-weight:600; color:var(--text);">📥 如需恢复旧版备份数据（粘贴到下方）：</div>
-<textarea id="piBackupData" placeholder="粘贴备份字符串（如果不需要恢复，留空即可）" style="min-height:100px; font-size:12px;"></textarea>
-<div class="ma"><button class="bc2" onclick="closePlate()">关闭</button><button class="bo" onclick="confirmPlate()">确认恢复</button></div>
-</div>
-</div>
-
-<div class="mo" id="em">
-<div class="mb">
-<div class="mtitle">✎ 编辑记录</div>
-<input type="date" id="ed" value="">
-<input type="number" id="ea" placeholder="油费 (元)" step="0.01">
-<input type="number" id="el" placeholder="升数 (L)" step="0.01">
-<input type="number" id="ei" placeholder="里程 (km)" step="1">
-<div class="ma"><button class="bc2" onclick="closeEdit()">取消</button><button class="bo" onclick="saveEdit()">保存</button></div>
-</div>
-</div>
-
-<div class="mo" id="tm">
-<div class="mb">
-<div class="mtitle">🎯 设置公司标准油耗</div>
-<div class="tt3" style="margin-bottom:14px">范围 1.0 ~ 100.0，每次 0.1</div>
-<label style="font-size:14px;font-weight:600;color:var(--primary);display:block;margin-bottom:8px">公司标准油耗（L/100km）：</label>
-<select class="ts" id="tsel" size="7"></select>
-<div class="tc" id="tch">当前：14.0 L/100km</div>
-<div class="ma"><button class="bc2" onclick="closeTarget()">取消</button><button class="bo" onclick="confirmTarget()">确认</button></div>
-</div>
-</div>
-
-<div class="mo" id="rm">
-<div class="mb" style="max-width:96vw;max-height:90vh;overflow-y:auto;padding:16px">
-<div class="report-month-selector">
-<label>📅 选择月份：</label>
-<select id="reportMonthSelect" onchange="switchReportMonth()"></select>
-</div>
-<div class="report-title-input">
-<label>✏️ 报表标题：</label>
-<input type="text" id="reportTitleInput" placeholder="输入公司名称/报表标题" oninput="onReportTitleInput()" maxlength="60">
-</div>
-<div id="rc"></div>
-<div class="ma">
-<button class="bc2" onclick="closeReport()">关闭</button>
-<button class="bp2" onclick="printReport()">🖨️ 打印当前显示</button>
-<button class="bo" onclick="copyReport()">📋 复制内容</button>
-</div>
-</div>
-</div>
-
-<div class="mo" id="bkm">
-<div class="mb">
-<div class="mtitle">📤 备份数据</div>
-<div class="mhint">复制下面全部内容保存好，可在新版"📥 恢复"或后台"查看数据→复制备份"中导入</div>
-<textarea id="bkText" readonly></textarea>
-<div class="ma"><button class="bc2" onclick="closeBackup()">关闭</button><button class="bo" onclick="copyBackup()">📋 复制全部</button></div>
-</div>
-</div>
-
-<div class="mo" id="rsm">
-<div class="mb">
-<div class="mtitle">📥 恢复数据</div>
-<div class="mhint">把之前备份的内容粘贴到下面，然后点"恢复"</div>
-<textarea id="rsText" placeholder="粘贴备份内容..."></textarea>
-<div class="ma"><button class="bc2" onclick="closeRestore()">取消</button><button class="bp2" onclick="doRestore()">确认恢复</button></div>
-</div>
-</div>
-
-<div class="pc" id="pc"></div>
-<div class="tt2" id="tt2"></div>
-
 <script>
-var STORAGE_TOKEN_KEY='fuel_token',STORAGE_PLATE_KEY='fuel_plate',_authToken=localStorage.getItem(STORAGE_TOKEN_KEY)||'',_authPlate=localStorage.getItem(STORAGE_PLATE_KEY)||'',_cacheData=null,_saveTimer=null,_storeMode='server',DEFAULT_REPORT_TITLE='上海鹏源驾驶员车辆费用统计表';
-function _defaultData(p){return{plateNumber:p||'',driverName:'',records:[],expenses:[],stations:[],createdAt:Date.now(),targetFuel:14,service:{lastMileage:0,intervalMajor:8000},salaryByMonth:{},reportTitle:DEFAULT_REPORT_TITLE};}
-function _normalizeData(d,p){if(!d||typeof d!=='object')d=_defaultData(p);if(!Array.isArray(d.records))d.records=[];if(typeof d.targetFuel!=='number'||d.targetFuel<1||d.targetFuel>100)d.targetFuel=14;if(!d.service||typeof d.service!=='object'){d.service={lastMileage:0,intervalMajor:8000};}if(!d.salaryByMonth||typeof d.salaryByMonth!=='object')d.salaryByMonth={};if(typeof d.reportTitle!=='string')d.reportTitle=DEFAULT_REPORT_TITLE;if(!Array.isArray(d.expenses))d.expenses=[];if(!Array.isArray(d.stations))d.stations=[];if(!d.createdAt)d.createdAt=Date.now();d.plateNumber=p||d.plateNumber||'';if(typeof d.driverName!=='string')d.driverName='';return d;}
+var STORAGE_TOKEN_KEY='fuel_token',STORAGE_PLATE_KEY='fuel_plate',_authToken=localStorage.getItem(STORAGE_TOKEN_KEY)||'',_authPlate=localStorage.getItem(STORAGE_PLATE_KEY)||'',_cacheData=null,_saveTimer=null,DEFAULT_REPORT_TITLE='上海鹏源驾驶员车辆费用统计表';
+function _defaultData(p){return{plateNumber:p||'',driverName:'',records:[],targetFuel:14,service:{lastMileage:0,intervalMajor:8000},salaryByMonth:{},reportTitle:DEFAULT_REPORT_TITLE};}
+function _normalizeData(d,p){if(!d||typeof d!=='object')d=_defaultData(p);if(!Array.isArray(d.records))d.records=[];if(typeof d.targetFuel!=='number'||d.targetFuel<1||d.targetFuel>100)d.targetFuel=14;if(!d.service||typeof d.service!=='object'){d.service={lastMileage:0,intervalMajor:8000};}if(!d.salaryByMonth||typeof d.salaryByMonth!=='object')d.salaryByMonth={};if(typeof d.reportTitle!=='string')d.reportTitle=DEFAULT_REPORT_TITLE;d.plateNumber=p||d.plateNumber||'';if(typeof d.driverName!=='string')d.driverName='';return d;}
 async function _apiFetch(u,o){o=o||{};o.headers=Object.assign({},o.headers,{'Authorization':'Bearer '+_authToken});if(o.body&&typeof o.body==='string')o.headers['Content-Type']='application/json';var r=await fetch(u,o);if(r.status===401){logoutLocal();throw new Error('登录已失效');}return r;}
-async function loadServerData(){var r=await _apiFetch('/api/data');if(!r.ok)throw new Error('加载数据失败');var d=await r.json();_cacheData=_normalizeData(d,_authPlate);_loadedOk=true;return _cacheData;}
+async function loadServerData(){var r=await _apiFetch('/api/data');if(!r.ok)throw new Error('加载数据失败');var d=await r.json();_cacheData=_normalizeData(d,_authPlate);return _cacheData;}
 function getData(){if(!_cacheData)_cacheData=_defaultData(_authPlate);return _cacheData;}
-var _loadedOk=false;
-function setData(d){if(!_loadedOk){console.warn('数据未加载成功，本次不写回');_cacheData=d;return;}_cacheData=d;clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){_saveTimer=null;_apiFetch('/api/data',{method:'PUT',body:JSON.stringify(_cacheData)}).then(function(r){if(!r.ok)throw new Error('服务器返回 '+r.status);}).catch(function(e){toast('⚠️ 保存失败：'+e.message);});},400);}
-window.addEventListener('beforeunload',function(){if(!_loadedOk)return;if(_saveTimer&&_cacheData){clearTimeout(_saveTimer);try{fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authToken},body:JSON.stringify(_cacheData),keepalive:true});}catch(e){}}});
+function setData(d){_cacheData=d;clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){_saveTimer=null;_apiFetch('/api/data',{method:'PUT',body:JSON.stringify(_cacheData)}).then(function(r){if(!r.ok)throw new Error('服务器返回 '+r.status);}).catch(function(e){toast('⚠️ 保存失败：'+e.message);});},400);}
+window.addEventListener('beforeunload',function(){if(_saveTimer&&_cacheData){clearTimeout(_saveTimer);try{fetch('/api/data',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_authToken},body:JSON.stringify(_cacheData),keepalive:true});}catch(e){}}});
 function getRecords(){return getData().records||[];}
 function setRecords(r){var d=getData();d.records=r;setData(d);}
 function getPlate(){return getData().plateNumber||'';}
-function setPlate(p){var d=getData();d.plateNumber=p;setData(d);}
-function getDriverName(){return getData().driverName||'';}
 function getTarget(){var d=getData();var v=parseFloat(d.targetFuel);if(isNaN(v)||v<1||v>100)return 14;return Math.round(v*10)/10;}
 function setTarget(v){var d=getData();d.targetFuel=Math.round(parseFloat(v)*10)/10;setData(d);}
 function getReportTitle(){var d=getData();var t=(d.reportTitle||'').trim();return t||DEFAULT_REPORT_TITLE;}
-function setReportTitle(v){var d=getData();d.reportTitle=(v==null?'':String(v)).trim();setData(d);}
 function getServiceSettings(){var d=getData();if(!d.service)d.service={lastMileage:0,intervalMajor:8000};return d.service;}
 function setServiceSettings(s){var d=getData();d.service=s;setData(d);}
-function getSalarySettings(m){var d=getData();if(!d.salaryByMonth)d.salaryByMonth={};if(!d.salaryByMonth[m])d.salaryByMonth[m]={basic:4500,housing:1000,wash:150,maintenance:0,parking:0,meal:0,otherSubsidy:0,otType:'day',otCount:0,otRate:200,holType:'day',holCount:0,holRate:200,holMulti:3,kmRate:0.25};return d.salaryByMonth[m];}
+function getSalarySettings(m){var d=getData();if(!d.salaryByMonth)d.salaryByMonth={};if(!d.salaryByMonth[m])d.salaryByMonth[m]={basic:4500,housing:1000,wash:150,maintenance:0,parking:0,meal:0,otherSubsidy:0,otCount:0,otRate:200};return d.salaryByMonth[m];}
 function setSalarySettings(m,s){var d=getData();if(!d.salaryByMonth)d.salaryByMonth={};d.salaryByMonth[m]=s;setData(d);}
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function fmtDate(s){if(!s)return '';var p=s.split('-');return p[0]+'-'+p[1]+'-'+p[2];}
 function fmtDateCN(s){if(!s)return '';var p=s.split('-');return p[0]+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日';}
 function getMonthLabel(s){if(!s)return '';var p=s.split('-');return p[0]+'年'+parseInt(p[1])+'月';}
 function getMonthKey(s){if(!s)return '';var p=s.split('-');return p[0]+'-'+p[1];}
-function tf(v,d){if(v===undefined||v===null)return '0';return parseFloat(v).toFixed(d);}
+function tf(v,d){if(v===undefined||v===null||isNaN(v))return '0';return parseFloat(v).toFixed(d);}
 function getToday(){var d=new Date();return{y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};}
 function getCurrentMonthKey(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
 function getCurrentMonthLabel(){var d=new Date();return d.getFullYear()+'年'+(d.getMonth()+1)+'月';}
-function getMonthMileage(rs,mk){var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;});if(mr.length===0)return 0;mr.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var e=mr[mr.length-1].mileage,s=0;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});if(pr.length>0)s=pr[0].mileage;else s=mr[0].mileage;if(e<=s)return 0;return e-s;}
+function getMonthMileage(rs,mk){var mr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;});if(mr.length===0)return 0;mr.sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var e=mr[mr.length-1].mileage,s=0;var pr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});if(pr.length>0)s=pr[0].mileage;else s=mr[0].mileage;if(e<=s)return 0;return e-s;}
 var _dpYear,_dpMonth,_dpSelectedDate;
 function initDatePicker(){var t=getToday();_dpSelectedDate=t.y+'-'+String(t.m).padStart(2,'0')+'-'+String(t.d).padStart(2,'0');_dpYear=t.y;_dpMonth=t.m;updateDateDisplay();}
-function updateDateDisplay(){var p=_dpSelectedDate.split('-');document.getElementById('dateDisplay').textContent=p[0]+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日';}
+function updateDateDisplay(){var p=_dpSelectedDate.split('-');var str=p[0]+'年'+parseInt(p[1])+'月'+parseInt(p[2])+'日';var el1=document.getElementById('dateDisplay');var el2=document.getElementById('dateDisplay2');var el3=document.getElementById('dateDisplay3');if(el1)el1.textContent=str;if(el2)el2.textContent=str;if(el3)el3.textContent=str;}
 function openDatePicker(){var p=_dpSelectedDate.split('-');_dpYear=parseInt(p[0]);_dpMonth=parseInt(p[1]);renderDatePicker();document.getElementById('dp').classList.add('sh');}
 function closeDatePicker(){document.getElementById('dp').classList.remove('sh');}
 function changeDPYear(d){_dpYear+=d;renderDatePicker();}
 function changeDPMonth(d){_dpMonth+=d;if(_dpMonth>12){_dpMonth=1;_dpYear++;}if(_dpMonth<1){_dpMonth=12;_dpYear--;}renderDatePicker();}
-function renderDatePicker(){document.getElementById('dpLabel').textContent=_dpYear+'年'+_dpMonth+'月';var dim=new Date(_dpYear,_dpMonth,0).getDate();var g=document.getElementById('dpGrid');g.innerHTML='';for(var i=1;i<=dim;i++){var div=document.createElement('div');div.textContent=i;var ds=_dpYear+'-'+String(_dpMonth).padStart(2,'0')+'-'+String(i).padStart(2,'0');if(ds===_dpSelectedDate)div.className='selected';(function(s){div.onclick=function(){_dpSelectedDate=s;updateDateDisplay();closeDatePicker();};})(ds);g.appendChild(div);}var rem=dim%4;if(rem!==0){for(var j=0;j<(4-rem);j++){var em=document.createElement('div');em.className='empty';g.appendChild(em);}}}
+function renderDatePicker(){document.getElementById('dpLabel').textContent=_dpYear+'年'+_dpMonth+'月';var dim=new Date(_dpYear,_dpMonth,0).getDate();var g=document.getElementById('dpGrid');g.innerHTML='';for(var i=1;i<=dim;i++){var div=document.createElement('div');div.textContent=i;var ds=_dpYear+'-'+String(_dpMonth).padStart(2,'0')+'-'+String(i).padStart(2,'0');if(ds===_dpSelectedDate)div.className='selected';(function(s){div.onclick=function(){_dpSelectedDate=s;updateDateDisplay();closeDatePicker();};})(ds);g.appendChild(div);}}
 function getSelDate(){return _dpSelectedDate;}
 function fmtExactFuel(v){if(v===null||v===undefined||isNaN(v)||v<=0)return '--';var s=v.toString();var i=s.indexOf('.');if(i===-1)return s+'.000';var d=s.substring(i+1,i+4);while(d.length<3)d+='0';return s.substring(0,i+1)+d;}
-function getFirstFuelIds(rs){var bm={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var ids={};Object.keys(bm).forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});for(var i=0;i<mr.length;i++){if(mr[i].liters>0){ids[mr[i].id]=true;break;}}});return ids;}
-function updateServiceCard(){var rs=getRecords();var svc=getServiceSettings();var lm=svc.lastMileage||0;var im=svc.intervalMajor||8000;var cm=0;rs.forEach(function(r){if(r.mileage&&r.mileage>cm)cm=r.mileage;});if(cm===0)cm=lm;var de=document.getElementById('svcDesc');var se=document.getElementById('svcStatus');if(lm===0&&cm===0){de.textContent='点击设置保养参数';se.textContent='设置';se.className='sc-status';return;}var dr=cm-lm;var rm=im-dr;var dt='',st='正常',sc='sc-status';if(rm<=0){dt='保养已超期 '+Math.abs(rm)+' km';st='需保养';sc='sc-status danger';}else if(rm<=500){dt='距下次保养剩 '+rm+' km，准备换机油';st='即将保养';sc='sc-status warn';}else{dt='距下次保养还有 '+rm+' km';st='正常';}de.textContent=dt;se.textContent=st;se.className=sc;}
+function getFirstFuelIds(rs){var bm={};rs.forEach(function(r){if(r.category==='expense'||r.category==='maint')return;var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var ids={};Object.keys(bm).forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});for(var i=0;i<mr.length;i++){if(mr[i].liters>0){ids[mr[i].id]=true;break;}}});return ids;}
+function switchView(id, el){document.querySelectorAll('.view-page').forEach(function(p){p.classList.remove('active');});document.getElementById(id).classList.add('active');document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});if(el)el.classList.add('active');}
+function switchRecordTab(type){document.querySelectorAll('.record-tab').forEach(function(t){t.classList.remove('active');});event.target.classList.add('active');document.querySelectorAll('.record-content').forEach(function(c){c.classList.remove('active');});document.getElementById('form'+type.charAt(0).toUpperCase()+type.slice(1)).classList.add('active');}
+function toggleMonthHistory(boxId, arrowId){var b=document.getElementById(boxId);var a=document.getElementById(arrowId);if(b.classList.contains('hidden')){b.classList.remove('hidden');if(a)a.textContent='▼';}else{b.classList.add('hidden');if(a)a.textContent='▶';}}
+function renderAll(){renderMonthBadge();renderPlate();renderStats();renderTarget();updateServiceCard();updateSalaryCard();renderRecords();}
+function renderMonthBadge(){var sel=document.getElementById('viewMonthBadge');var rs=getRecords();var mks={};rs.forEach(function(r){var k=getMonthKey(r.date);if(k)mks[k]=getMonthLabel(r.date);});var ck=getCurrentMonthKey();if(!mks[ck])mks[ck]=getCurrentMonthLabel();var keys=Object.keys(mks).sort(function(a,b){return b.localeCompare(a);});sel.innerHTML='';keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='📅 '+mks[k];if(k===_viewMonthKey)o.selected=true;sel.appendChild(o);});}
+function renderPlate(){var p=getPlate();var el=document.getElementById('pt');if(p){el.textContent=p;el.className='';}else{el.textContent='车牌';el.className='ph';}var n=getData().driverName||'';var st=document.getElementById('storeStatus');if(st)st.textContent='💾 云端'+(n?' · '+n:'')+(p?' · '+p:'');}
+function renderStats(){var rs=getRecords();var tm=getMonthMileage(rs,_viewMonthKey);var mr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)===_viewMonthKey;});var cnt=mr.length,amt=0,lit=0;mr.forEach(function(r){amt+=r.amount||0;lit+=r.liters||0;});var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;document.getElementById('sc').textContent=cnt;document.getElementById('sam').innerHTML=tf(amt,2)+' <span class="u">元</span>';document.getElementById('sli').innerHTML=tf(lit,2)+' <span class="u">L</span>';document.getElementById('stm').innerHTML=tm+' <span class="u">km</span>';document.getElementById('sem').innerHTML=em+' <span class="u">km</span>';var ga=calcMonthAvg(rs,_viewMonthKey);document.getElementById('sav').innerHTML=(ga!==null&&ga>0)?fmtExactFuel(ga)+' <span class="u">L</span>':'--';}
+function renderTarget(){var rs=getRecords();var info=calcTargetInfo(rs,_viewMonthKey);document.getElementById('sfd').textContent='≤ '+info.target.toFixed(1);document.getElementById('tca').textContent=info.avg!==null?fmtExactFuel(info.avg):'--';var ge=document.getElementById('tgp');if(info.gap!==null){if(info.gap>0){ge.innerHTML='<span class="r">超出 '+fmtExactFuel(info.gap)+'</span>';}else if(info.gap<0){ge.innerHTML='<span class="g">低于 '+fmtExactFuel(Math.abs(info.gap))+'</span>';}else{ge.innerHTML='<span style="color:#2563eb;">正好达标</span>';}}else{ge.textContent='--';}var nk=document.getElementById('tnk');if(info.needKm!==null&&info.needKm>0)nk.innerHTML='<span class="r">还需跑 '+Math.ceil(info.needKm)+' km</span>';else if(info.needKm!==null&&info.needKm===0)nk.innerHTML='<span class="g">已达标</span>';else nk.textContent='--';var st=document.getElementById('tst');st.textContent=info.status;st.className='tst '+(info.isOK?'ok':'bad');}
+function calcMonthAvg(rs,mk){var mr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return null;var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return null;var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return null;return (tl/tm)*100;}
+function calcTargetInfo(rs,mk){var tg=getTarget();var mr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return{avg:null,gap:null,needKm:null,status:'数据不足',isOK:false,target:tg};var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return r.category!=='expense'&&r.category!=='maint'&&getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return{avg:null,gap:null,needKm:null,status:'无里程',isOK:false,target:tg};var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return{avg:null,gap:null,needKm:null,status:'无升数',isOK:false,target:tg};var cur=(tl/tm)*100;var gap=cur-tg;var nk=null,st='',ok=false;if(cur<=tg){ok=true;st='✅ 合格 — 当前油耗符合标准';nk=0;}else{var req=(tl/tg)*100;nk=req-tm;if(nk<0)nk=0;st='❌ 超标 — 需继续努力';}return{avg:cur,gap:gap,needKm:nk,status:st,isOK:ok,target:tg};}
+function updateServiceCard(){var rs=getRecords();var svc=getServiceSettings();var lm=svc.lastMileage||0;var im=svc.intervalMajor||8000;var cm=0;rs.forEach(function(r){if(r.mileage&&r.mileage>cm)cm=r.mileage;});if(cm===0)cm=lm;var de=document.getElementById('svcDesc');var se=document.getElementById('svcStatus');if(lm===0&&cm===0){de.textContent='点击设置保养参数';se.textContent='设置';se.className='sc-status';return;}var dr=cm-lm;var rm=im-dr;var dt='',st='正常',sc='sc-status';if(rm<=0){dt='保养已超期 '+Math.abs(rm)+' km';st='需保养';sc='sc-status danger';}else if(rm<=500){dt='距下次保养剩 '+rm+' km';st='即将保养';sc='sc-status warn';}else{dt='距下次保养还有 '+rm+' km';st='正常';}de.textContent=dt;se.textContent=st;se.className=sc;}
+function updateSalaryCard(){var s=getSalarySettings(_viewMonthKey);var mm=getMonthMileage(getRecords(),_viewMonthKey);var mc=mm*0.25;var tot=(s.basic||0)+(s.housing||0)+(s.wash||0)+(s.maintenance||0)+(s.parking||0)+(s.meal||0)+(s.otherSubsidy||0)+(s.otCount||0)*(s.otRate||0)+mc;document.getElementById('salaryDesc').textContent='本月实发约 '+tot.toFixed(2)+' 元';}
+function renderRecords(){var rs=getRecords();var c=document.getElementById('rl');if(rs.length===0){c.innerHTML='<div class="es">暂无记录</div>';return;}var bm={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var mk=Object.keys(bm).sort(function(a,b){return b.localeCompare(a);});var h='';mk.forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var ta=mr.reduce(function(s,r){return s+(r.amount||0);},0);h+='<div class="month-header" onclick="toggleMonthHistory(\'mb-'+k.replace('-','_')+'\',\'ar-'+k.replace('-','_')+'\')"><div>📅 '+getMonthLabel(k)+'</div><div>'+mr.length+'条 · '+ta.toFixed(0)+'元 · <span id="ar-'+k.replace('-','_')+'">▼</span></div></div>';h+='<div class="month-body hidden" id="mb-'+k.replace('-','_')+'">';mr.forEach(function(r){var dateStr=fmtDate(r.date);if(r.category==='expense'){h+='<div class="ri" style="border-left-color:#F59E0B"><div class="tr"><span class="dt">💸 '+dateStr+'</span><div class="ac"><button onclick="delRecord('+r.id+')">✕</button></div></div><div class="dl"><span>'+r.expenseType+'</span><span class="vl">'+tf(r.amount,2)+' 元</span><span>'+r.note+'</span></div></div>';}else if(r.category==='maint'){h+='<div class="ri" style="border-left-color:#10B981"><div class="tr"><span class="dt">🛠️ '+dateStr+'</span><div class="ac"><button onclick="delRecord('+r.id+')">✕</button></div></div><div class="dl"><span>'+r.maintContent+'</span><span class="vl">'+tf(r.amount,2)+' 元</span><span>里程:'+r.mileage+' km</span></div></div>';}else{h+='<div class="ri"><div class="tr"><span class="dt">⛽ '+dateStr+'</span><div class="ac"><button onclick="delRecord('+r.id+')">✕</button></div></div><div class="dl"><span>油费: <span class="vl">'+tf(r.amount,2)+'</span></span><span>升数: <span class="vl">'+tf(r.liters,2)+'</span></span><span>里程: <span class="vl">'+r.mileage+'</span></span></div></div>';}});h+='</div>';});c.innerHTML=h;}
+function handleSaveFuel(){var dt=getSelDate();var amt=parseFloat(document.getElementById('ia').value)||0;var lit=parseFloat(document.getElementById('il').value)||0;var mil=parseFloat(document.getElementById('im').value)||0;if(!(amt>0||lit>0||mil>0)){toast('请至少填一项');return;}var rs=getRecords();rs.push({id:Date.now(),date:dt,category:'fuel',amount:amt,liters:lit,mileage:mil?Math.round(mil):0});setRecords(rs);_viewMonthKey=getMonthKey(dt);renderAll();document.getElementById('ia').value='';document.getElementById('il').value='';document.getElementById('im').value='';toast('✅ 记录已保存');switchView('viewHome',document.querySelectorAll('.nav-item')[0]);}
+function saveExpense(){var dt=getSelDate();var type=document.getElementById('expenseType').value;var amt=parseFloat(document.getElementById('expenseAmount').value)||0;var note=document.getElementById('expenseNote').value.trim();if(!(amt>0)){toast('请输入金额');return;}var rs=getRecords();rs.push({id:Date.now(),date:dt,category:'expense',expenseType:type,amount:amt,note:note});setRecords(rs);_viewMonthKey=getMonthKey(dt);renderAll();document.getElementById('expenseAmount').value='';document.getElementById('expenseNote').value='';toast('✅ 费用已保存');switchView('viewHome',document.querySelectorAll('.nav-item')[0]);}
+function saveMaint(){var dt=getSelDate();var mil=parseFloat(document.getElementById('maintMileage').value)||0;var content=document.getElementById('maintContent').value.trim();var amt=parseFloat(document.getElementById('maintAmount').value)||0;if(!content){toast('请输入保养内容');return;}var rs=getRecords();rs.push({id:Date.now(),date:dt,category:'maint',maintContent:content,amount:amt,mileage:mil?Math.round(mil):0});setRecords(rs);_viewMonthKey=getMonthKey(dt);renderAll();document.getElementById('maintMileage').value='';document.getElementById('maintContent').value='';document.getElementById('maintAmount').value='';toast('✅ 保养已保存');switchView('viewHome',document.querySelectorAll('.nav-item')[0]);}
+function delRecord(id){if(!confirm('确定删除此记录吗？'))return;var rs=getRecords().filter(function(r){return r.id!==id;});setRecords(rs);renderAll();toast('已删除');}
 function showService(){var s=getServiceSettings();document.getElementById('svcLastMileage').value=s.lastMileage||'';document.getElementById('svcMajorInterval').value=s.intervalMajor||8000;document.getElementById('svcm').classList.add('sh');}
 function closeService(){document.getElementById('svcm').classList.remove('sh');}
-function confirmService(){var l=parseFloat(document.getElementById('svcLastMileage').value)||0;var m=parseFloat(document.getElementById('svcMajorInterval').value)||8000;setServiceSettings({lastMileage:l,intervalMajor:m});closeService();updateServiceCard();toast('✅ 保养设置已保存');}
-var _currentOtTypeRegular='day',_currentOtTypeHoliday='day';
-function setOtType(t,o){if(t==='regular'){_currentOtTypeRegular=o;document.querySelectorAll('#otToggleRegular button').forEach(function(b){b.classList.remove('act');});if(o==='day')document.querySelector('#otToggleRegular button:nth-child(1)').classList.add('act');else document.querySelector('#otToggleRegular button:nth-child(2)').classList.add('act');document.getElementById('otRegLabel').textContent=o==='day'?'天数':'小时数';document.getElementById('otRegRateLabel').textContent=o==='day'?'单价 (元/天)':'单价 (元/小时)';}else{_currentOtTypeHoliday=o;document.querySelectorAll('#otToggleHoliday button').forEach(function(b){b.classList.remove('act');});if(o==='day')document.querySelector('#otToggleHoliday button:nth-child(1)').classList.add('act');else document.querySelector('#otToggleHoliday button:nth-child(2)').classList.add('act');document.getElementById('otHolLabel').textContent=o==='day'?'天数':'小时数';document.getElementById('otHolRateLabel').textContent=o==='day'?'单价 (元/天)':'单价 (元/小时)';}}
-function updateSalaryCard(){var s=getSalarySettings(_viewMonthKey);var d=document.getElementById('salaryDesc');var st=document.getElementById('salaryStatus');var mm=getMonthMileage(getRecords(),_viewMonthKey);var mc=mm*(s.kmRate==null?0.25:s.kmRate);var tot=(s.basic||0)+(s.housing||0)+(s.wash||0)+(s.maintenance||0)+(s.parking||0)+(s.meal||0)+(s.otherSubsidy||0)+(s.otCount||0)*(s.otRate||0)+(s.holCount||0)*(s.holRate||0)*(s.holMulti||1)+mc;d.textContent='本月实发约 '+tot.toFixed(2)+' 元';st.textContent='查看';}
-function showSalary(){var s=getSalarySettings(_viewMonthKey);document.getElementById('salaryMonthLabel').textContent=getMonthLabel(_viewMonthKey);document.getElementById('sBasic').value=s.basic;document.getElementById('sHousing').value=s.housing;document.getElementById('sWash').value=s.wash;document.getElementById('sMaintenance').value=s.maintenance;document.getElementById('sParking').value=s.parking;document.getElementById('sMeal').value=s.meal||0;document.getElementById('sOtherSubsidy').value=s.otherSubsidy||0;_currentOtTypeRegular=s.otType||'day';_currentOtTypeHoliday=s.holType||'day';setOtType('regular',_currentOtTypeRegular);setOtType('holiday',_currentOtTypeHoliday);document.getElementById('sOtCount').value=s.otCount;document.getElementById('sOtRate').value=s.otRate;document.getElementById('sHolCount').value=s.holCount;document.getElementById('sHolRate').value=s.holRate;document.getElementById('sHolMulti').value=s.holMulti;var mm=getMonthMileage(getRecords(),_viewMonthKey);document.getElementById('sMileage').value=mm;var _sel=document.getElementById('sKmRate');if(_sel){if(_sel.options.length===0){for(var _i=1;_i<=100;_i++){var _o=document.createElement('option');_o.value=String(_i);_o.textContent=(_i/100).toFixed(2)+' 元/km（'+_i+'分）';_sel.appendChild(_o);}}var _kr=Math.round((s.kmRate==null?0.25:s.kmRate)*100);if(_kr<1)_kr=1;if(_kr>100)_kr=100;_sel.value=String(_kr);}calcSalaryTotal();document.getElementById('salarym').classList.add('sh');}
+function confirmService(){var l=parseFloat(document.getElementById('svcLastMileage').value)||0;var m=parseFloat(document.getElementById('svcMajorInterval').value)||8000;setServiceSettings({lastMileage:l,intervalMajor:m});closeService();updateServiceCard();toast('✅ 已保存');}
+function showSalary(){var s=getSalarySettings(_viewMonthKey);document.getElementById('salaryMonthLabel').textContent=getMonthLabel(_viewMonthKey);['Basic','Housing','Wash','Maintenance','Parking','Meal','OtherSubsidy','OtCount','OtRate'].forEach(function(k){var el=document.getElementById('s'+k);if(el)el.value=s[k.charAt(0).toLowerCase()+k.slice(1)]||0;});document.getElementById('sMileage').value=getMonthMileage(getRecords(),_viewMonthKey);calcSalaryTotal();document.getElementById('salarym').classList.add('sh');}
 function closeSalary(){document.getElementById('salarym').classList.remove('sh');}
-function calcSalaryTotal(){var b=parseFloat(document.getElementById('sBasic').value)||0;var h=parseFloat(document.getElementById('sHousing').value)||0;var w=parseFloat(document.getElementById('sWash').value)||0;var m=parseFloat(document.getElementById('sMaintenance').value)||0;var p=parseFloat(document.getElementById('sParking').value)||0;var meal=parseFloat(document.getElementById('sMeal').value)||0;var other=parseFloat(document.getElementById('sOtherSubsidy').value)||0;var oc=parseFloat(document.getElementById('sOtCount').value)||0;var or=parseFloat(document.getElementById('sOtRate').value)||0;var hc=parseFloat(document.getElementById('sHolCount').value)||0;var hr=parseFloat(document.getElementById('sHolRate').value)||0;var hm=parseFloat(document.getElementById('sHolMulti').value)||1;var mi=parseFloat(document.getElementById('sMileage').value)||0;var _krEl=document.getElementById('sKmRate');var _kr=parseFloat(_krEl&&_krEl.value)/100;if(!(_kr>0))_kr=0.25;var mc=mi*_kr;document.getElementById('sMileageComm').value=mc.toFixed(2)+' 元';var tot=b+h+w+m+p+meal+other+(oc*or)+(hc*hr*hm)+mc;document.getElementById('sTotal').textContent=tot.toFixed(2);}
-function confirmSalary(){var s={basic:parseFloat(document.getElementById('sBasic').value)||0,housing:parseFloat(document.getElementById('sHousing').value)||0,wash:parseFloat(document.getElementById('sWash').value)||0,maintenance:parseFloat(document.getElementById('sMaintenance').value)||0,parking:parseFloat(document.getElementById('sParking').value)||0,meal:parseFloat(document.getElementById('sMeal').value)||0,otherSubsidy:parseFloat(document.getElementById('sOtherSubsidy').value)||0,otType:_currentOtTypeRegular,otCount:parseFloat(document.getElementById('sOtCount').value)||0,otRate:parseFloat(document.getElementById('sOtRate').value)||0,holType:_currentOtTypeHoliday,holCount:parseFloat(document.getElementById('sHolCount').value)||0,holRate:parseFloat(document.getElementById('sHolRate').value)||0,holMulti:parseFloat(document.getElementById('sHolMulti').value)||1,kmRate:(parseFloat(document.getElementById('sKmRate').value)||25)/100};setSalarySettings(_viewMonthKey,s);updateSalaryCard();closeSalary();toast('✅ '+getMonthLabel(_viewMonthKey)+' 工资单已保存');}
-var _viewMonthKey=getCurrentMonthKey();
-function changeViewMonth(v){_viewMonthKey=v;renderStats();renderTarget();updateSalaryCard();renderRecords();}
-function calcMonthFuel(rs){var so=rs.slice().sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var fm={};var lm=null;var ll=0;var ff=getFirstFuelIds(rs);so.forEach(function(r){var hm=r.mileage&&r.mileage>0;var hl=r.liters&&r.liters>0;if(ff[r.id]){fm[r.id]=null;}else if(hm&&lm!==null&&ll>0){var d=r.mileage-lm;fm[r.id]=d>0?{fuel:(ll/d)*100,distance:d}:null;}else{fm[r.id]=null;}if(hm)lm=r.mileage;if(hl)ll=r.liters;});return fm;}
-function calcMonthAvg(rs,mk){var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return null;var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return null;var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return null;return (tl/tm)*100;}
-function calcTargetInfo(rs,mk){var tg=getTarget();var mr=rs.filter(function(r){return getMonthKey(r.date)===mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(mr.length<2)return{avg:null,gap:null,needKm:null,status:'数据不足（至少需要两条里程记录）',isOK:false,target:tg};var e=mr[mr.length-1].mileage;var s=mr[0].mileage;var pr=rs.filter(function(r){return getMonthKey(r.date)<mk&&r.mileage&&r.mileage>0;}).sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var fm=(pr.length===0);if(!fm)s=pr[0].mileage;var tm=e-s;if(tm<=0)return{avg:null,gap:null,needKm:null,status:'里程差为零',isOK:false,target:tg};var tl=0;mr.forEach(function(r){tl+=(r.liters||0);});if(fm)tl-=(mr[0].liters||0);if(tl<=0)return{avg:null,gap:null,needKm:null,status:'暂无实际加油升数',isOK:false,target:tg};var cur=(tl/tm)*100;var gap=cur-tg;var nk=null,st='',ok=false;if(cur<=tg){ok=true;st='✅ 合格 — 当前油耗符合标准（≤'+tg.toFixed(1)+'）';nk=0;}else{var req=(tl/tg)*100;nk=req-tm;if(nk<0)nk=0;st='❌ 超标 — 还需跑 '+Math.ceil(nk)+' 公里可达标';}return{avg:cur,gap:gap,needKm:nk,status:st,isOK:ok,target:tg};}
-var _collapsedMonths={},_userToggled={};
-function renderAll(){renderMonthBadge();renderPlate();renderStats();renderTarget();updateServiceCard();updateSalaryCard();renderRecords();renderSummary();}
-function renderMonthBadge(){var sel=document.getElementById('viewMonthBadge');var rs=getRecords();var mks={};rs.forEach(function(r){var k=getMonthKey(r.date);if(k)mks[k]=getMonthLabel(r.date);});var ck=getCurrentMonthKey();if(!mks[ck])mks[ck]=getCurrentMonthLabel();var keys=Object.keys(mks).sort(function(a,b){return b.localeCompare(a);});sel.innerHTML='';keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='📅 '+mks[k];if(k===_viewMonthKey)o.selected=true;sel.appendChild(o);});}
-function renderPlate(){var p=getPlate();var el=document.getElementById('pt');if(p){el.textContent=p;el.className='';}else{el.textContent='车牌';el.className='ph';}var n=getDriverName();var st=document.getElementById('storeStatus');if(st)st.textContent='💾 云端存储'+(n?' · '+n:'')+(p?' · '+p:'');}
-function renderStats(){var rs=getRecords();var tm=getMonthMileage(rs,_viewMonthKey);var mr=rs.filter(function(r){return getMonthKey(r.date)===_viewMonthKey;});var cnt=mr.length,amt=0,lit=0;mr.forEach(function(r){amt+=r.amount||0;lit+=r.liters||0;});var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;document.getElementById('sc').textContent=cnt;document.getElementById('sam').innerHTML=tf(amt,2)+' <span class="u">元</span>';document.getElementById('sli').innerHTML=tf(lit,2)+' <span class="u">L</span>';document.getElementById('stm').innerHTML=tm+' <span class="u">km</span>';document.getElementById('sem').innerHTML=em+' <span class="u">km</span>';var ga=calcMonthAvg(rs,_viewMonthKey);document.getElementById('sav').innerHTML=(ga!==null&&ga>0)?fmtExactFuel(ga)+' <span class="u">L/100km</span>':'--';}
-function renderTarget(){var rs=getRecords();var info=calcTargetInfo(rs,_viewMonthKey);document.getElementById('sfd').textContent='≤ '+info.target.toFixed(1)+' L/100km';document.getElementById('tca').textContent=info.avg!==null?fmtExactFuel(info.avg)+' L/100km':'--';var ge=document.getElementById('tgp');if(info.gap!==null){if(info.gap>0){ge.innerHTML='<span class="r">超出 '+fmtExactFuel(info.gap)+' L/100km</span>';}else if(info.gap<0){ge.innerHTML='<span class="g">低于 '+fmtExactFuel(Math.abs(info.gap))+' L/100km</span>';}else{ge.innerHTML='<span style="color:#2563eb;font-weight:700;">正好达标</span>';}}else{ge.textContent='--';}var nk=document.getElementById('tnk');if(info.needKm!==null&&info.needKm>0)nk.innerHTML='<span class="r">还需跑 '+Math.ceil(info.needKm)+' km</span>';else if(info.needKm!==null&&info.needKm===0)nk.innerHTML='<span class="g">0 km（已达标）</span>';else nk.textContent='--';var st=document.getElementById('tst');st.textContent=info.status;st.className='tst';if(info.isOK)st.classList.add('ok');else if(info.status.indexOf('超标')>-1)st.classList.add('bad');}
-function renderRecords(){var rs=getRecords();var c=document.getElementById('rl');if(rs.length===0){c.innerHTML='<div class="es"><span class="bi">📭</span>暂无加油记录<div class="ht">添加第一条记录开始记账</div></div>';return;}var fm=calcMonthFuel(rs);var bm={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!bm[k])bm[k]=[];bm[k].push(r);});var mk=Object.keys(bm).sort(function(a,b){return b.localeCompare(a);});var cm=_viewMonthKey;var h='';mk.forEach(function(k){var mr=bm[k].slice().sort(function(a,b){return b.date.localeCompare(a.date)||b.id-a.id;});var ta=mr.reduce(function(s,r){return s+(r.amount||0);},0);var tl=mr.reduce(function(s,r){return s+(r.liters||0);},0);var ic;if(_userToggled[k]!==undefined)ic=_collapsedMonths[k];else ic=(k!==cm);var hc='month-header'+(ic?' collapsed':'');var bc='month-body'+(ic?' hidden':'');var bi='mb-'+k.replace('-','_');h+='<div class="'+hc+'" onclick="toggleMonth(\''+k+'\')" data-mkey="'+k+'">';h+='<div class="mh-left">📅 '+getMonthLabel(k)+'</div>';h+='<div class="mh-right">'+mr.length+'条 · '+ta.toFixed(2)+'元 · '+tl.toFixed(2)+'L <span class="arrow">▼</span></div>';h+='</div>';h+='<div class="'+bc+'" id="'+bi+'">';mr.forEach(function(r){var fd=fm[r.id]||null;var ft='--',b='na',dt='';if(fd&&fd.fuel>0){ft=fmtExactFuel(fd.fuel)+' L/100km';dt=fd.distance;b='';}var ps=[];if(r.amount&&r.amount>0)ps.push('<span><span class="lb">油费</span> <span class="vl">'+tf(r.amount,2)+' 元</span></span>');if(r.liters&&r.liters>0)ps.push('<span><span class="lb">升数</span> <span class="vl">'+tf(r.liters,2)+' L</span></span>');if(dt)ps.push('<span><span class="lb">本次跑</span> <span class="vl">'+dt+' km</span></span>');if(r.mileage&&r.mileage>0)ps.push('<span><span class="lb">里程</span> <span class="vl">'+r.mileage+' km</span></span>');if(r.stationName)ps.push('<span><span class="lb">油站</span> <span class="vl">'+escapeHtml(r.stationName)+'</span></span>');if(r.saved>0)ps.push('<span><span class="vl" style="color:#059669">省 '+money(r.saved)+' 元</span></span>');if(ps.length===0)ps.push('<span style="color:#9CA3AF">无数据</span>');h+='<div class="ri"><div class="tr"><span class="dt">'+fmtDate(r.date)+'</span><div class="ac"><span class="fb '+b+'">'+ft+'</span><button onclick="event.stopPropagation();editRecord('+r.id+')">✎</button><button onclick="event.stopPropagation();delRecord('+r.id+')">✕</button></div></div><div class="dl">'+ps.join(' &nbsp;|&nbsp; ')+'</div></div>';});h+='</div>';});c.innerHTML=h;}
-function toggleMonth(k){var cm=_viewMonthKey;if(_userToggled[k]===undefined)_collapsedMonths[k]=(k!==cm);_collapsedMonths[k]=!_collapsedMonths[k];_userToggled[k]=true;var bi='mb-'+k.replace('-','_');var b=document.getElementById(bi);var h=document.querySelector('.month-header[data-mkey="'+k+'"]');if(!b||!h)return;if(_collapsedMonths[k]){b.classList.add('hidden');h.classList.add('collapsed');}else{b.classList.remove('hidden');h.classList.remove('collapsed');}}
-function renderSummary(){var rs=getRecords();var c=document.getElementById('ml');if(rs.length===0){c.innerHTML='<div class="es"><span class="bi">📊</span>暂无月度数据<div class="ht">添加记录后自动汇总</div></div>';return;}var mks={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!mks[k])mks[k]=getMonthLabel(r.date);});var keys=Object.keys(mks).sort(function(a,b){return b.localeCompare(a);});var h='';keys.forEach(function(k){var mr=rs.filter(function(r){return getMonthKey(r.date)===k;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});var amt=mr.reduce(function(s,r){return s+(r.amount||0);},0);var lit=mr.reduce(function(s,r){return s+(r.liters||0);},0);var mm=getMonthMileage(rs,k);var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;var fe=calcMonthAvg(rs,k);var fd='--';if(fe!==null&&fe>0)fd=fmtExactFuel(fe)+' L/100km';h+='<div class="mi"><div class="mlb">'+mks[k]+'（'+mr.length+'次）</div><div class="ms"><div class="sl"><span>总油费</span><span class="nm">'+tf(amt,2)+' 元</span></div><div class="sl"><span>总升数</span><span class="nm">'+tf(lit,2)+' L</span></div><div class="sl"><span>本月里程</span><span class="nm">'+mm+' km</span></div><div class="sl"><span>期末里程</span><span class="hn">'+em+' km</span></div><div class="sl" style="grid-column:span 2;border-bottom:none;justify-content:center;padding-top:6px"><span>平均油耗</span><span class="fe">'+fd+'</span></div></div></div>';});c.innerHTML=h;}
-function updatePreview(){var dt=getSelDate();var amt=parseFloat(document.getElementById('ia').value)||0;var lit=parseFloat(document.getElementById('il').value)||0;var mil=parseFloat(document.getElementById('im').value)||0;var el=document.getElementById('fp');if(!dt){el.innerHTML='<span class="em">请选择日期</span>';return;}if(!(amt>0||lit>0||mil>0)){el.innerHTML='<span class="em">至少填一项（金额/升数/里程）</span>';return;}if(lit>0&&mil>0){var rs=getRecords();var mr=rs.concat([{id:Date.now(),date:dt,amount:amt,liters:lit,mileage:mil}]);var fm=calcMonthFuel(mr);var fd=fm[Date.now()]||null;if(fd!==null&&fd.fuel>0){el.innerHTML='📊 预计百公里油耗：<strong>'+fmtExactFuel(fd.fuel)+'</strong> L/100km（本次跑 '+fd.distance+' km）';el.style.color='var(--primary-dark)';return;}else{el.innerHTML='<span style="color:var(--text2);font-weight:400">数据不足，无法计算</span>';el.style.color='var(--text2)';return;}}var msg=[];if(amt>0)msg.push('💰 '+amt.toFixed(2)+' 元');if(lit>0)msg.push('⛽ '+lit.toFixed(2)+' L');if(mil>0)msg.push('📏 '+mil+' km');el.innerHTML='<span style="color:var(--text2);font-weight:400">📝 '+msg.join(' · ')+'</span>';}
-function handleSave(){var dt=getSelDate();var amt=parseFloat(document.getElementById('ia').value)||0;var lit=parseFloat(document.getElementById('il').value)||0;var mil=parseFloat(document.getElementById('im').value)||0;if(!dt){toast('请选择日期');return;}if(!(amt>0||lit>0||mil>0)){toast('请至少填一项');return;}if(mil>0){var rs=getRecords();var mk=getMonthKey(dt);var mp=0;rs.forEach(function(r){if(getMonthKey(r.date)===mk&&r.mileage&&r.mileage>mp)mp=r.mileage;});if(mp>0&&mil<=mp){if(!confirm('当前里程 '+mil+' 不大于本月上次记录 '+mp+'，确定继续吗？'))return;}}var rs=getRecords();var nr={id:Date.now(),date:dt,amount:amt,liters:lit,mileage:mil?Math.round(mil):0};attachStation(nr);rs.push(nr);setRecords(rs);_viewMonthKey=getMonthKey(dt);renderAll();var fm=calcMonthFuel(getRecords());var fd=fm[nr.id];var msg='✅ 记录已保存';if(fd&&fd.fuel>0){msg+='，本次跑了 '+fd.distance+' km，油耗 '+fmtExactFuel(fd.fuel)+' L/100km';}toast(msg);document.getElementById('ia').value='';document.getElementById('il').value='';document.getElementById('im').value='';var _stSel=document.getElementById('istation');if(_stSel)_stSel.value='';document.getElementById('fp').innerHTML='<span class="em">至少填一项，自动计算油耗（需里程+升数）</span>';initDatePicker();document.getElementById('ia').focus();document.getElementById('sa').scrollTop=0;}
-var _editId=null;
-function editRecord(id){var r=null;getRecords().forEach(function(x){if(x.id===id)r=x;});if(!r)return;_editId=id;document.getElementById('ed').value=r.date||'';document.getElementById('ea').value=r.amount||'';document.getElementById('el').value=r.liters||'';document.getElementById('ei').value=r.mileage||'';document.getElementById('em').classList.add('sh');}
-function closeEdit(){document.getElementById('em').classList.remove('sh');_editId=null;}
-function saveEdit(){var id=_editId;if(id===null)return;var dt=document.getElementById('ed').value;var amt=parseFloat(document.getElementById('ea').value);var lit=parseFloat(document.getElementById('el').value);var mil=parseFloat(document.getElementById('ei').value);if(!dt){toast('请选择日期');return;}var rs=getRecords();var idx=-1;for(var i=0;i<rs.length;i++)if(rs[i].id===id)idx=i;if(idx===-1){toast('记录不存在');return;}rs[idx].date=dt;rs[idx].amount=isNaN(amt)?0:amt;rs[idx].liters=isNaN(lit)?0:lit;rs[idx].mileage=isNaN(mil)?0:Math.round(mil);setRecords(rs);closeEdit();renderAll();toast('✅ 记录已更新');}
-function delRecord(id){if(!confirm('确定删除此记录吗？'))return;var rs=getRecords().filter(function(r){return r.id!==id;});setRecords(rs);renderAll();toast('已删除');}
-function showBackup(){var d=getData();var j=JSON.stringify(d);var b='';try{b=btoa(unescape(encodeURIComponent(j)));}catch(e){b=j;}document.getElementById('bkText').value=b;document.getElementById('bkm').classList.add('sh');}
+function calcSalaryTotal(){var v=function(id){return parseFloat(document.getElementById(id).value)||0;};var mc=v('sMileage')*0.25;document.getElementById('sMileageComm').value=mc.toFixed(2)+' 元';var tot=v('sBasic')+v('sHousing')+v('sWash')+v('sMaintenance')+v('sParking')+v('sMeal')+v('sOtherSubsidy')+(v('sOtCount')*v('sOtRate'))+mc;document.getElementById('sTotal').textContent=tot.toFixed(2);}
+function confirmSalary(){var s={basic:parseFloat(document.getElementById('sBasic').value)||0,housing:parseFloat(document.getElementById('sHousing').value)||0,wash:parseFloat(document.getElementById('sWash').value)||0,maintenance:parseFloat(document.getElementById('sMaintenance').value)||0,parking:parseFloat(document.getElementById('sParking').value)||0,meal:parseFloat(document.getElementById('sMeal').value)||0,otherSubsidy:parseFloat(document.getElementById('sOtherSubsidy').value)||0,otCount:parseFloat(document.getElementById('sOtCount').value)||0,otRate:parseFloat(document.getElementById('sOtRate').value)||0};setSalarySettings(_viewMonthKey,s);updateSalaryCard();closeSalary();toast('✅ 已保存');}
+function showTarget(){var sel=document.getElementById('tsel');var cur=getTarget();sel.innerHTML='';for(var i=10;i<=1000;i++){var v=i/10;var o=document.createElement('option');o.value=v.toFixed(1);o.textContent=v.toFixed(1)+' L/100km';if(Math.abs(v-cur)<0.001)o.selected=true;sel.appendChild(o);}document.getElementById('tch').textContent='当前：'+cur.toFixed(1);document.getElementById('tm').classList.add('sh');}
+function closeTarget(){document.getElementById('tm').classList.remove('sh');}
+function confirmTarget(){var v=parseFloat(document.getElementById('tsel').value);setTarget(v);closeTarget();renderTarget();toast('已设为 '+v);}
+function openReport(){var rs=getRecords();if(rs.length===0){toast('暂无数据');return;}var gr={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!gr[k])gr[k]=[];gr[k].push(r);});var ms=Object.keys(gr).sort(function(a,b){return b.localeCompare(a);});var sel=document.getElementById('reportMonthSelect');sel.innerHTML='';ms.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=getMonthLabel(k);sel.appendChild(o);});document.getElementById('rc').innerHTML=buildSheet(ms[0],gr[ms[0]],getPlate()||'-',rs);document.getElementById('rm').classList.add('sh');}
+function switchReportMonth(){var k=document.getElementById('reportMonthSelect').value;var rs=getRecords();var gr=rs.filter(function(r){return getMonthKey(r.date)===k;});document.getElementById('rc').innerHTML=buildSheet(k,gr,getPlate()||'-',rs);}
+function buildSheet(mk,mr,pl,rs){var f=mr.filter(function(r){return r.category!=='expense'&&r.category!=='maint';});var amt=f.reduce(function(s,r){return s+(r.amount||0);},0);var lit=f.reduce(function(s,r){return s+(r.liters||0);},0);var mm=getMonthMileage(rs,mk);var af=calcMonthAvg(rs,mk);var fa=(af!==null&&af>0)?fmtExactFuel(af):'--';var h='<div class="sh2"><div style="text-align:center;font-size:18px;font-weight:bold;margin-bottom:10px">'+getReportTitle()+'</div>';h+='<table><tr><td>车牌号: '+pl+'</td><td>当月里程: '+mm+' km</td><td>百公里油耗: '+fa+'</td></tr><tr><td>加油金额: '+amt.toFixed(2)+'</td><td>当月升数: '+lit.toFixed(2)+'</td><td>所属月份: '+getMonthLabel(mk)+'</td></tr></table>';h+='<table style="margin-top:10px"><tr><th>日期</th><th>类型/内容</th><th>金额</th><th>升数/里程</th></tr>';mr.sort(function(a,b){return a.date.localeCompare(b.date);}).forEach(function(r){var t='',v='';if(r.category==='expense'){t='💸 '+r.expenseType;v='里程: -';}else if(r.category==='maint'){t='🛠️ '+r.maintContent;v='里程: '+r.mileage;}else{t='⛽ 加油';v=r.liters+' L / '+r.mileage+' km';}h+='<tr><td>'+fmtDateCN(r.date)+'</td><td>'+t+'</td><td>'+(r.amount||0).toFixed(2)+'</td><td>'+v+'</td></tr>';});h+='</table></div>';return h;}
+function printReport(){window.print();}
+function closeReport(){document.getElementById('rm').classList.remove('sh');}
+function showBackup(){var j=JSON.stringify(getData());var b='';try{b=btoa(unescape(encodeURIComponent(j)));}catch(e){b=j;}document.getElementById('bkText').value=b;document.getElementById('bkm').classList.add('sh');}
 function closeBackup(){document.getElementById('bkm').classList.remove('sh');}
-function copyBackup(){var t=document.getElementById('bkText');t.select();t.setSelectionRange(0,999999);try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t.value).then(function(){toast('📋 已复制，请粘贴保存');});}else{document.execCommand('copy');toast('📋 已复制，请粘贴保存');}}catch(e){toast('请手动长按选中复制');}}
+function copyBackup(){var t=document.getElementById('bkText');t.select();try{navigator.clipboard.writeText(t.value);toast('已复制');}catch(e){document.execCommand('copy');toast('已复制');}}
 function showRestore(){document.getElementById('rsText').value='';document.getElementById('rsm').classList.add('sh');}
 function closeRestore(){document.getElementById('rsm').classList.remove('sh');}
-function doRestore(){var v=document.getElementById('rsText').value.trim();if(!v){toast('请粘贴备份内容');return;}var j='';try{j=decodeURIComponent(escape(atob(v)));}catch(e){j=v;}var d=null;try{d=JSON.parse(j);}catch(e){toast('备份内容格式错误');return;}if(!d||!Array.isArray(d.records)){toast('备份内容无效');return;}if(!confirm('确认恢复吗？当前数据将被覆盖！'))return;var cur=getData();d.plateNumber=cur.plateNumber||d.plateNumber||_authPlate;setData(_normalizeData(d,_authPlate));closeRestore();renderAll();toast('✅ 数据已恢复');}
+function doRestore(){var v=document.getElementById('rsText').value.trim();if(!v)return;var j='';try{j=decodeURIComponent(escape(atob(v)));}catch(e){j=v;}try{var d=JSON.parse(j);if(!d.records)throw 0;setData(_normalizeData(d,_authPlate));closeRestore();renderAll();toast('✅ 恢复成功');}catch(e){toast('恢复失败');}}
+function openNearbyGasStations() {if (navigator.geolocation) {toast('正在获取定位...');navigator.geolocation.getCurrentPosition(function(position) {var lat = position.coords.latitude;var lng = position.coords.longitude;var url = 'https://uri.amap.com/search?keyword=加油站&center=' + lng + ',' + lat + '&radius=5000&callnative=0';var _u=url;try{if(window.AndroidBridge&&window.AndroidBridge.openUrl){window.AndroidBridge.openUrl(_u);return;}}catch(e){}window.open(_u, '_blank');},function(error) {toast('定位失败，请允许获取位置');try{if(window.AndroidBridge&&window.AndroidBridge.openUrl){window.AndroidBridge.openUrl('https://uri.amap.com/search?keyword=加油站');return;}}catch(e){}window.open('https://uri.amap.com/search?keyword=加油站', '_blank');},{ timeout: 8000 });} else {toast('您的设备不支持定位');try{if(window.AndroidBridge&&window.AndroidBridge.openUrl){window.AndroidBridge.openUrl('https://uri.amap.com/search?keyword=加油站');return;}}catch(e){}window.open('https://uri.amap.com/search?keyword=加油站', '_blank');}}
+var _viewMonthKey=getCurrentMonthKey();
+function changeViewMonth(v){_viewMonthKey=v;renderStats();renderTarget();updateSalaryCard();}
 var _tt=null;
 function toast(m){var el=document.getElementById('tt2');el.textContent=m;el.classList.add('sh');clearTimeout(_tt);_tt=setTimeout(function(){el.classList.remove('sh');},2200);}
-function showPlate(){document.getElementById('pi').value=getPlate();document.getElementById('piBackupData').value='';document.getElementById('pm').classList.add('sh');}
-function closePlate(){document.getElementById('pm').classList.remove('sh');}
-function confirmPlate(){var bd=document.getElementById('piBackupData').value.trim();if(bd){var j='';try{j=decodeURIComponent(escape(atob(bd)));}catch(e){j=bd;}var d=null;try{d=JSON.parse(j);}catch(e){toast('❌ 备份格式错误');closePlate();return;}if(!d||!Array.isArray(d.records)){toast('❌ 备份无效');closePlate();return;}d.plateNumber=_authPlate;setData(_normalizeData(d,_authPlate));renderAll();toast('✅ 数据已恢复');}closePlate();}
-function buildTargetOptions(){var sel=document.getElementById('tsel');var cur=getTarget();sel.innerHTML='';for(var i=10;i<=1000;i++){var v=i/10;var o=document.createElement('option');o.value=v.toFixed(1);o.textContent=v.toFixed(1)+' L/100km';if(Math.abs(v-cur)<0.001)o.selected=true;sel.appendChild(o);}}
-function showTarget(){buildTargetOptions();document.getElementById('tch').textContent='当前：'+getTarget().toFixed(1)+' L/100km';document.getElementById('tm').classList.add('sh');setTimeout(function(){var sel=document.getElementById('tsel');var o=sel.querySelector('option:checked');if(o)o.scrollIntoView({block:'center'});},100);}
-function closeTarget(){document.getElementById('tm').classList.remove('sh');}
-function confirmTarget(){var sel=document.getElementById('tsel');var v=parseFloat(sel.value);if(isNaN(v)){toast('请选择油耗标准');return;}setTarget(v);closeTarget();renderTarget();toast('✅ 标准油耗已设为 '+v.toFixed(1)+' L/100km');}
-var _reportData=null,_currentReportMonth='__all__';
-function buildSheet(mk,mr,pl,rs){var amt=mr.reduce(function(s,r){return s+(r.amount||0);},0);var lit=mr.reduce(function(s,r){return s+(r.liters||0);},0);var mm=getMonthMileage(rs,mk);var em=0;var ms=mr.filter(function(r){return r.mileage&&r.mileage>0;}).sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});if(ms.length>0)em=ms[ms.length-1].mileage;var af=calcMonthAvg(rs,mk);var fa=(af!==null&&af>0)?fmtExactFuel(af):'--';var h='<div class="sh2">';h+='<div class="st2">'+escapeHtml(getReportTitle())+'</div>';h+='<div class="sm">'+getMonthLabel(mk)+'</div>';h+='<table class="it"><tr>';h+='<td class="lb">车牌号:</td><td class="vl">'+escapeHtml(pl)+'</td>';h+='<td class="lb">驾驶员:</td><td class="vl">'+escapeHtml(getDriverName())+'</td>';h+='<td class="lb">总公里数:</td><td class="vl">'+(em||0)+'</td>';h+='<td class="lb">当月里程:</td><td class="vl">'+mm+'</td>';h+='</tr><tr>';h+='<td class="lb">加油金额:</td><td class="vl">'+amt.toFixed(2)+'</td>';h+='<td class="lb">当月油耗(升)</td><td class="vl">'+lit.toFixed(2)+'</td>';h+='<td class="lb">百公里油耗:</td><td class="vl">'+fa+'</td>';h+='<td class="lb">所属项目名称:</td><td class="vl"></td>';h+='</tr></table>';h+='<table class="mt"><colgroup>';h+='<col style="width:5%"><col style="width:15%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%"><col style="width:8.8%">';h+='</colgroup><thead><tr>';h+='<th>序号</th><th>费用产生日期</th><th>油费</th><th>本次加油数量<br>(升)</th><th>本次加油行驶<br>里程(公里)</th><th>路桥费</th><th>停车费</th><th>维修保养</th><th>洗车费</th><th>差旅费用</th>';h+='</tr></thead><tbody>';for(var i=0;i<31;i++){if(i<mr.length){var r=mr[i];h+='<tr><td>'+(i+1)+'</td><td>'+fmtDateCN(r.date)+'</td><td>'+tf(r.amount,2)+'</td><td>'+tf(r.liters,2)+'</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';}else{h+='<tr><td>'+(i+1)+'</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';}}h+='<tr class="tot"><td>32</td><td>合计:</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';h+='<tr class="tot"><td>33</td><td colspan="9" class="gt">总计金额</td></tr>';h+='</tbody></table></div>';return h;}
-function openReport(){var rs=getRecords();if(rs.length===0){toast('暂无数据');return;}var pl=getPlate()||'_______';var gr={};rs.forEach(function(r){var k=getMonthKey(r.date);if(!gr[k])gr[k]=[];gr[k].push(r);});var ms=Object.keys(gr).sort(function(a,b){return b.localeCompare(a);});var sel=document.getElementById('reportMonthSelect');sel.innerHTML='';var oa=document.createElement('option');oa.value='__all__';oa.textContent='📊 全部月份（共'+ms.length+'个月）';sel.appendChild(oa);ms.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='📄 '+getMonthLabel(k)+'（'+gr[k].length+'条）';sel.appendChild(o);});_currentReportMonth=ms[0]||'__all__';sel.value=_currentReportMonth;document.getElementById('reportTitleInput').value=getReportTitle();_reportData={plate:pl,records:rs,groups:gr,months:ms};renderReportContent();document.getElementById('rm').classList.add('sh');}
-function switchReportMonth(){var sel=document.getElementById('reportMonthSelect');_currentReportMonth=sel.value;renderReportContent();}
-function onReportTitleInput(){var v=document.getElementById('reportTitleInput').value;setReportTitle(v);renderReportContent();}
-function renderReportContent(){if(!_reportData)return;var d=_reportData;var h='';if(_currentReportMonth==='__all__'){d.months.forEach(function(k){var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div style="margin-bottom:20px">';h+='<div class="pw">'+buildSheet(k,mr,d.plate,d.records)+'</div>';h+='</div>';});}else{var k=_currentReportMonth;var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="pw">'+buildSheet(k,mr,d.plate,d.records)+'</div>';h+='<div class="sch">← 左右滑动查看完整表格 →</div>';}document.getElementById('rc').innerHTML=h;}
-function closeReport(){document.getElementById('rm').classList.remove('sh');}
-function printReport(){if(!_reportData){toast('没有可打印的数据');return;}var d=_reportData;var h='';if(_currentReportMonth==='__all__'){d.months.forEach(function(k){var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="a4">'+buildSheet(k,mr,d.plate,d.records)+'</div>';});}else{var k=_currentReportMonth;var mr=d.groups[k].sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});h+='<div class="a4">'+buildSheet(k,mr,d.plate,d.records)+'</div>';}var pc=document.getElementById('pc');pc.innerHTML=h;pc.style.display='block';setTimeout(function(){window.print();setTimeout(function(){pc.style.display='none';pc.innerHTML='';},1500);},300);}
-function copyReport(){var c=document.getElementById('rc');if(!c)return;var t=c.innerText.replace(/\s+/g,' ').trim();if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('📋 报表内容已复制');}).catch(function(){_fallbackCopy(t);});}else _fallbackCopy(t);}
-function _fallbackCopy(t){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('📋 报表内容已复制');}catch(e){toast('复制失败');}document.body.removeChild(ta);}
-document.querySelectorAll('.tb').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('.tb').forEach(function(x){x.classList.remove('act');});this.classList.add('act');var t=this.dataset.t;document.querySelectorAll('.tp').forEach(function(p){p.classList.remove('act');});document.getElementById(t==='r'?'pr':'ps').classList.add('act');});});
-document.getElementById('ia').addEventListener('input',updatePreview);
-document.getElementById('il').addEventListener('input',updatePreview);
-document.getElementById('im').addEventListener('input',updatePreview);
-document.getElementById('bSave').addEventListener('click',handleSave);
-document.getElementById('im').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();handleSave();}});
-document.querySelectorAll('.mo').forEach(function(o){o.addEventListener('click',function(e){if(e.target===this)this.classList.remove('sh');});});
 function showLoginOverlay(){var el=document.getElementById('loginOverlay');if(el)el.style.display='flex';}
 function hideLoginOverlay(){var el=document.getElementById('loginOverlay');if(el)el.style.display='none';}
 function logoutLocal(){localStorage.removeItem(STORAGE_TOKEN_KEY);localStorage.removeItem(STORAGE_PLATE_KEY);_authToken='';_authPlate='';_cacheData=null;showLoginOverlay();}
 async function doLogin(){var p=document.getElementById('loginPlate').value.trim();var e=document.getElementById('loginError');e.textContent='';if(!p){e.textContent='请输入车牌号';return;}var b=document.getElementById('loginBtn');b.disabled=true;b.textContent='登录中...';try{var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate:p})});var d=await r.json();if(!r.ok)throw new Error(d.error||'登录失败');_authToken=d.token;_authPlate=d.plate;localStorage.setItem(STORAGE_TOKEN_KEY,_authToken);localStorage.setItem(STORAGE_PLATE_KEY,_authPlate);await loadServerData();hideLoginOverlay();startApp();}catch(err){e.textContent=err.message||'登录失败';}finally{b.disabled=false;b.textContent='登 录';}}
 function startApp(){var el=document.getElementById('storeStatus');if(el){el.textContent='💾 云端存储 · '+_authPlate;el.className='storeStatus';}initDatePicker();renderAll();}
 async function initApp(){var b=document.getElementById('loginBtn');var p=document.getElementById('loginPlate');if(b)b.addEventListener('click',doLogin);if(p)p.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});if(_authToken&&_authPlate){try{await loadServerData();hideLoginOverlay();startApp();return;}catch(e){}}showLoginOverlay();}
-
-/* ===== 小熊风格扩展：费用 / 加油站 / 我的 ===== */
-var EXP_TYPES=['加油','停车费','维修保养','洗车费','路桥费','保险','年检','罚款','餐饮','住宿','其他'];
-var _curView='home';
-var _expEditId=null;
-var _stEditId=null;
-function money(v){var n=parseFloat(v);if(isNaN(n))n=0;return n.toFixed(2);}
-function getExpenses(){var d=getData();if(!Array.isArray(d.expenses))d.expenses=[];return d.expenses;}
-function setExpenses(a){var d=getData();d.expenses=a;setData(d);}
-function getStations(){var d=getData();if(!Array.isArray(d.stations))d.stations=[];return d.stations;}
-function setStations(a){var d=getData();d.stations=a;setData(d);}
-function switchView(v){
-  _curView=v;
-  ['home','expenses','stations','mine'].forEach(function(k){
-    var el=document.getElementById('view'+k.charAt(0).toUpperCase()+k.slice(1));
-    if(!el)return;
-    if(k===v)el.classList.add('act');else el.classList.remove('act');
-  });
-  var navs=document.querySelectorAll('.navbar .nv');Array.prototype.forEach.call(navs,function(n){
-    if(n.getAttribute('data-v')===v)n.classList.add('act');
-    else if(n.getAttribute('data-v'))n.classList.remove('act');
-  });
-  var sa=document.getElementById('sa');if(sa)sa.scrollTop=0;
-  refreshNewViews();
-}
-function refreshNewViews(){try{renderExpenses();renderStations();renderMine();}catch(e){}}
-function showAddMenu(){document.getElementById('addm').classList.add('sh');}
-function closeAddMenu(){document.getElementById('addm').classList.remove('sh');}
-function goAddFuel(){closeAddMenu();switchView('home');var el=document.getElementById('ia');if(el)setTimeout(function(){el.focus();},220);}
-function goAddExpense(){closeAddMenu();switchView('expenses');showExpenseForm();}
-function renderExpenses(){
-  var mk=_viewMonthKey;
-  var rs=getRecords().filter(function(r){return getMonthKey(r.date)===mk;});
-  var ex=getExpenses().filter(function(e){return getMonthKey(e.date)===mk;});
-  var fuelAmt=0,fuelCnt=0;
-  rs.forEach(function(r){fuelAmt+=(r.amount||0);if((r.amount||0)>0)fuelCnt++;});
-  var otherAmt=0;ex.forEach(function(e){otherAmt+=(parseFloat(e.amount)||0);});
-  var e1=document.getElementById('expMonthLabel2');if(e1)e1.textContent=getMonthLabel(mk);
-  var e2=document.getElementById('expTotal');if(e2)e2.textContent=money(fuelAmt+otherAmt);
-  var e3=document.getElementById('expCount');if(e3)e3.textContent=String(fuelCnt+ex.length);
-  var e4=document.getElementById('expFuel');if(e4)e4.textContent=money(fuelAmt);
-  var byType={};
-  if(fuelAmt>0)byType['加油']=fuelAmt;
-  ex.forEach(function(e){var t=e.type||'其他';byType[t]=(byType[t]||0)+(parseFloat(e.amount)||0);});
-  var keys=Object.keys(byType).sort(function(a,b){return byType[b]-byType[a];});
-  var total=fuelAmt+otherAmt;
-  var h='';
-  if(keys.length===0){h='<div class="vempty">本月还没有费用记录</div>';}
-  keys.forEach(function(k){
-    var v=byType[k];var pct=total>0?(v/total*100):0;
-    h+='<div class="vli"><div><div class="lm">'+escapeHtml(k)+'</div><div class="ls">占比 '+pct.toFixed(0)+'%</div></div><div class="ra">'+money(v)+' 元</div></div>';
-  });
-  var box=document.getElementById('expByType');if(box)box.innerHTML=h;
-  var items=[];
-  rs.forEach(function(r){
-    if(!((r.amount||0)>0||(r.liters||0)>0))return;
-    var sub='';
-    if(r.liters>0)sub+=tf(r.liters,2)+' L';
-    if(r.stationName)sub+=(sub?' · ':'')+r.stationName;
-    if(r.saved>0)sub+=(sub?' · ':'')+'省 '+money(r.saved)+' 元';
-    items.push({date:r.date,title:'加油',sub:sub,amount:r.amount||0,kind:'fuel',id:null});
-  });
-  ex.forEach(function(e){items.push({date:e.date,title:e.type||'其他',sub:e.note||'',amount:parseFloat(e.amount)||0,kind:'exp',id:e.id});});
-  items.sort(function(a,b){return b.date.localeCompare(a.date);});
-  var h2='';
-  if(items.length===0){h2='<div class="vempty">暂无明细</div>';}
-  items.forEach(function(it){
-    h2+='<div class="vli"><div><div class="lm">'+escapeHtml(it.title)+'</div><div class="ls">'+fmtDate(it.date)+(it.sub?' · '+escapeHtml(it.sub):'')+'</div></div>'+
-      '<div style="display:flex;align-items:center;gap:6px"><div class="ra">'+money(it.amount)+'</div>'+
-      (it.kind==='exp'?'<button onclick="delExpense('+it.id+')" style="background:none;border:none;color:#CBD5E1;font-size:16px;cursor:pointer;padding:0 2px">&#10005;</button>':'')+'</div></div>';
-  });
-  var box2=document.getElementById('expList');if(box2)box2.innerHTML=h2;
-}
-function todayStr(){var t=getToday();return t.y+'-'+String(t.m).padStart(2,'0')+'-'+String(t.d).padStart(2,'0');}
-function showExpenseForm(id){
-  _expEditId=(id===undefined||id===null)?null:id;
-  var sel=document.getElementById('exType');
-  if(sel&&sel.options.length===0){EXP_TYPES.forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;sel.appendChild(o);});}
-  var cur=null;
-  if(_expEditId!==null){getExpenses().forEach(function(e){if(String(e.id)===String(_expEditId))cur=e;});}
-  if(document.getElementById('exDate'))document.getElementById('exDate').value=cur?cur.date:todayStr();
-  if(document.getElementById('exAmount'))document.getElementById('exAmount').value=cur?cur.amount:'';
-  if(document.getElementById('exNote'))document.getElementById('exNote').value=cur?(cur.note||''):'';
-  if(sel)sel.value=(cur&&cur.type)?cur.type:'停车费';
-  var t=document.getElementById('exTitle');if(t)t.textContent=_expEditId!==null?'&#9999; 修改费用':'\u{1F4B0} 记一笔费用';
-  document.getElementById('exm').classList.add('sh');
-}
-function closeExpenseForm(){document.getElementById('exm').classList.remove('sh');_expEditId=null;}
-function saveExpense(){
-  var dt=document.getElementById('exDate').value;
-  var amt=parseFloat(document.getElementById('exAmount').value);
-  var type=document.getElementById('exType').value;
-  var note=(document.getElementById('exNote').value||'').trim();
-  if(!dt){toast('请选择日期');return;}
-  if(isNaN(amt)||amt<=0){toast('请输入金额');return;}
-  var ex=getExpenses();
-  if(_expEditId!==null){
-    var hit=false;
-    ex.forEach(function(e){if(String(e.id)===String(_expEditId)){e.date=dt;e.type=type;e.amount=amt;e.note=note;hit=true;}});
-    if(!hit)ex.push({id:Date.now(),date:dt,type:type,amount:amt,note:note});
-  }else{
-    ex.push({id:Date.now(),date:dt,type:type,amount:amt,note:note});
-  }
-  setExpenses(ex);closeExpenseForm();renderAll();toast('&#9989; 费用已记录');
-}
-function delExpense(id){if(!confirm('删除这条费用记录？'))return;setExpenses(getExpenses().filter(function(e){return String(e.id)!==String(id);}));renderAll();toast('已删除');}
-function showStationForm(id){
-  _stEditId=(id===undefined||id===null)?null:id;
-  var cur=null;
-  if(_stEditId!==null){getStations().forEach(function(s){if(String(s.id)===String(_stEditId))cur=s;});}
-  if(document.getElementById('stName'))document.getElementById('stName').value=cur?cur.name:'';
-  if(document.getElementById('stFuel'))document.getElementById('stFuel').value=(cur&&cur.fuelType)?cur.fuelType:'92#';
-  if(document.getElementById('stPrice'))document.getElementById('stPrice').value=cur?cur.price:'';
-  if(document.getElementById('stDiscount'))document.getElementById('stDiscount').value=cur?cur.discount:'';
-  if(document.getElementById('stNote'))document.getElementById('stNote').value=cur?(cur.note||''):'';
-  document.getElementById('stm2').classList.add('sh');
-}
-function closeStationForm(){document.getElementById('stm2').classList.remove('sh');_stEditId=null;}
-function saveStation(){
-  var name=(document.getElementById('stName').value||'').trim();
-  if(!name){toast('请输入加油站名称');return;}
-  var fuelType=document.getElementById('stFuel').value;
-  var price=parseFloat(document.getElementById('stPrice').value)||0;
-  var discount=parseFloat(document.getElementById('stDiscount').value)||0;
-  var note=(document.getElementById('stNote').value||'').trim();
-  var st=getStations();
-  if(_stEditId!==null){
-    var hit=false;
-    st.forEach(function(s){if(String(s.id)===String(_stEditId)){s.name=name;s.fuelType=fuelType;s.price=price;s.discount=discount;s.note=note;hit=true;}});
-    if(!hit)st.push({id:Date.now(),name:name,fuelType:fuelType,price:price,discount:discount,note:note});
-  }else{
-    st.push({id:Date.now(),name:name,fuelType:fuelType,price:price,discount:discount,note:note});
-  }
-  setStations(st);closeStationForm();renderAll();buildStationOptions();toast('&#9989; 加油站已保存');
-}
-function delStation(id){if(!confirm('删除这个加油站？'))return;setStations(getStations().filter(function(s){return String(s.id)!==String(id);}));renderAll();buildStationOptions();toast('已删除');}
-function buildStationOptions(){
-  var sel=document.getElementById('istation');if(!sel)return;
-  var cur=sel.value;
-  sel.innerHTML='<option value="">不选</option>';
-  getStations().forEach(function(s){var o=document.createElement('option');o.value=String(s.id);o.textContent=s.name+(s.fuelType?'（'+s.fuelType+'）':'');sel.appendChild(o);});
-  if(cur)sel.value=cur;
-}
-function attachStation(nr){
-  var sel=document.getElementById('istation');if(!sel||!sel.value)return;
-  var sid=sel.value;var st=null;
-  getStations().forEach(function(s){if(String(s.id)===String(sid))st=s;});
-  if(!st)return;
-  nr.stationId=st.id;nr.stationName=st.name;
-  var lit=parseFloat(nr.liters)||0;
-  nr.discount=st.discount||0;
-  if(lit>0&&st.discount>0)nr.saved=Math.round(lit*st.discount*100)/100;
-  if(st.price>0)nr.price=st.price;
-}
-function renderStations(){
-  var st=getStations();var c=document.getElementById('stationList');
-  if(c){
-    var h='';
-    if(st.length===0)h='<div class="vempty">还没添加加油站，点右上角「&#65291; 添加」</div>';
-    st.forEach(function(s){
-      h+='<div class="vli"><div><div class="lm">'+escapeHtml(s.name)+'</div><div class="ls">'+escapeHtml(s.fuelType||'')+
-        (s.price>0?' · 挂牌 '+money(s.price)+' 元/L':'')+(s.discount>0?' · 优惠 '+money(s.discount)+' 元/L':'')+
-        (s.note?' · '+escapeHtml(s.note):'')+'</div></div>'+
-        '<div style="display:flex;gap:4px"><button onclick="showStationForm('+s.id+')" style="background:none;border:none;color:#CBD5E1;font-size:15px;cursor:pointer;padding:0 2px">&#9999;</button>'+
-        '<button onclick="delStation('+s.id+')" style="background:none;border:none;color:#CBD5E1;font-size:15px;cursor:pointer;padding:0 2px">&#10005;</button></div></div>';
-    });
-    c.innerHTML=h;
-  }
-  var saved=0,cnt=0;
-  getRecords().forEach(function(r){if(r.saved>0){saved+=r.saved;cnt++;}});
-  var t1=document.getElementById('saveTotal');if(t1)t1.textContent=money(saved);
-  var t2=document.getElementById('saveCount');if(t2)t2.textContent=String(cnt);
-  var t3=document.getElementById('saveAvg');if(t3)t3.textContent=money(cnt?saved/cnt:0);
-}
-function renderMine(){
-  var rs=getRecords(),ex=getExpenses();
-  var p=document.getElementById('minePlate');if(p)p.textContent=(getPlate()||'未设置车牌');
-  var d=getData();
-  var created=d.createdAt||Date.now();
-  var earliest=null;
-  rs.forEach(function(r){if(r.date&&(!earliest||r.date<earliest))earliest=r.date;});
-  ex.forEach(function(e){if(e.date&&(!earliest||e.date<earliest))earliest=e.date;});
-  if(earliest){var ed=new Date(earliest.replace(/-/g,'/'));if(!isNaN(ed.getTime())&&ed.getTime()<created)created=ed.getTime();}
-  var days=Math.max(1,Math.ceil((Date.now()-created)/86400000));
-  var a1=document.getElementById('mineDays');if(a1)a1.textContent=String(days);
-  var a2=document.getElementById('mineRecs');if(a2)a2.textContent=String(rs.length);
-  var a3=document.getElementById('mineExps');if(a3)a3.textContent=String(ex.length);
-  var mm=0,cost=0,tl=0,ov=0;
-  var ms=rs.filter(function(r){return r.mileage&&r.mileage>0;});
-  if(ms.length>=2){ms.sort(function(x,y){return x.date.localeCompare(y.date)||x.id-y.id;});mm=Math.max(0,ms[ms.length-1].mileage-ms[0].mileage);}
-  rs.forEach(function(r){cost+=(r.amount||0);});
-  ex.forEach(function(e){cost+=(parseFloat(e.amount)||0);});
-  if(mm>0){var firsts=getFirstFuelIds(rs);rs.forEach(function(r){if(!firsts[r.id])tl+=(r.liters||0);});ov=tl>0?tl/mm*100:0;}
-  var b1=document.getElementById('mineKm');if(b1)b1.textContent=String(mm);
-  var b2=document.getElementById('mineCost');if(b2)b2.textContent=money(cost);
-  var b3=document.getElementById('mineFuel');if(b3)b3.textContent=(ov>0?fmtExactFuel(ov):'--');
-  var c1=document.getElementById('mineTarget');if(c1)c1.textContent='\u2264'+getTarget().toFixed(1)+' L/100km';
-  var c2=document.getElementById('mineServiceDesc');if(c2){var sd=document.getElementById('svcDesc');if(sd)c2.textContent=sd.textContent;}
-}
-function exportCSV(){
-  var rs=getRecords(),ex=getExpenses();
-  var L=[];
-  L.push('类型,日期,项目,金额(元),升数(L),里程(km),加油站,优惠(元/L),节省(元),备注');
-  rs.forEach(function(r){L.push(['加油',r.date,'加油',money(r.amount),(r.liters>0?tf(r.liters,2):''),(r.mileage||''),(r.stationName||''),(r.discount>0?money(r.discount):''),(r.saved>0?money(r.saved):''),(r.note||'')].join(','));});
-  ex.forEach(function(e){L.push(['费用',e.date,(e.type||''),money(e.amount),'','','','','',(e.note||'')].join(','));});
-  var csv='\uFEFF'+L.join('\r\n');
-  var name='油耗记账_'+(getPlate()||'车辆')+'_'+getCurrentMonthKey()+'.csv';
-  try{
-    if(window.AndroidBridge&&window.AndroidBridge.saveText){window.AndroidBridge.saveText(name,csv);toast('已生成 '+name);return;}
-    var blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-    var url=URL.createObjectURL(blob);
-    var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();
-    setTimeout(function(){URL.revokeObjectURL(url);if(a.parentNode)a.parentNode.removeChild(a);},1500);
-    toast('已导出 '+name);
-  }catch(e){toast('导出失败');}
-}
-(function(){
-  var orig=renderAll;
-  renderAll=function(){orig();try{buildStationOptions();refreshNewViews();}catch(e){}};
-})();
-
-
-/* ===== 附近优惠加油站（定位后跳高德） ===== */
-function openNearbyGasStations(){
-  var fallback='https://uri.amap.com/search?keyword=加油站';
-  function go(u){try{if(window.AndroidBridge&&window.AndroidBridge.openUrl){window.AndroidBridge.openUrl(u);return;}}catch(e){}try{var w=window.open(u,'_blank');if(w)return;}catch(e){}try{location.href=u;}catch(e2){toast('打开地图失败');}}
-  if(!navigator.geolocation){toast('设备不支持定位，先打开周边搜索');go(fallback);return;}
-  toast('正在获取定位...');
-  navigator.geolocation.getCurrentPosition(function(p){
-    var lat=p.coords.latitude,lng=p.coords.longitude;
-    go('https://uri.amap.com/search?keyword=加油站&center='+lng+','+lat+'&radius=5000&callnative=0');
-  },function(){
-    toast('定位失败（需在系统里允许定位），先打开周边搜索');
-    go(fallback);
-  },{timeout:8000,enableHighAccuracy:true});
-}
-
-/* ===== A4 报表导出（替代 CSV） ===== */
-function closeA4(){var v=document.getElementById('a4view');if(v)v.classList.remove('sh');}
-function printA4(){try{window.print();}catch(e){toast('当前环境不支持打印，请用手机浏览器打开后打印');}}
-function exportA4(){showA4Report();}
-function showA4Report(){
-  var sheet=document.getElementById('a4sheet');var view=document.getElementById('a4view');
-  if(!sheet||!view)return;
-  sheet.innerHTML=buildA4();
-  view.classList.add('sh');
-  view.scrollTop=0;
-}
-function buildA4(){
-  var mk=_viewMonthKey;
-  var rs=getRecords().filter(function(r){return getMonthKey(r.date)===mk;})
-      .sort(function(a,b){return a.date.localeCompare(b.date)||a.id-b.id;});
-  var ex=getExpenses().filter(function(e){return getMonthKey(e.date)===mk;})
-      .sort(function(a,b){return a.date.localeCompare(b.date);});
-  var fuelAmt=0,lit=0;rs.forEach(function(r){fuelAmt+=(r.amount||0);lit+=(r.liters||0);});
-  var exAmt=0;ex.forEach(function(e){exAmt+=(parseFloat(e.amount)||0);});
-  var mileage=0;
-  try{mileage=getMonthMileage(getRecords(),mk)||0;}catch(e){mileage=0;}
-  var avg='--';
-  try{var ga2=calcMonthAvg(getRecords(),mk);if(ga2!==null&&ga2>0)avg=fmtExactFuel(ga2);}catch(e){}
-  var fm={};try{fm=calcMonthFuel(rs)||{};}catch(e){}
-  var now=new Date();
-  var ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-  var h='';
-  h+='<h1>油耗记账月度报表</h1>';
-  h+='<div class="asub">'+getMonthLabel(mk)+'　车辆/驾驶员费用明细表</div>';
-  h+='<div class="ameta"><span>车牌：'+escapeHtml(getPlate()||'—')+'　驾驶员：'+escapeHtml(getDriverName()||'—')+'</span><span>制表：'+ds+'</span></div>';
-  h+='<div class="asec">一、本月汇总</div>';
-  h+='<table><tr><th>加油次数</th><th>油费合计(元)</th><th>加油升数(L)</th><th>本月里程(km)</th><th>平均油耗(L/100km)</th></tr>';
-  h+='<tr><td>'+rs.length+'</td><td>'+money(fuelAmt)+'</td><td>'+tf(lit,2)+'</td><td>'+mileage+'</td><td>'+avg+'</td></tr></table>';
-  h+='<div class="asec">二、加油明细</div>';
-  h+='<table><tr><th style="width:26px">序号</th><th>日期</th><th>金额(元)</th><th>升数(L)</th><th>单价(元/L)</th><th>里程(km)</th><th>百公里油耗</th><th>加油站</th><th>优惠(元)</th></tr>';
-  if(rs.length===0){h+='<tr><td colspan="9">本月无加油记录</td></tr>';}
-  rs.forEach(function(r,i){
-    var price=r.liters>0?money(r.amount/r.liters):'—';
-    var fu='—';var f1=fm&&fm[r.id];
-    if(f1&&f1.fuel>0)fu=f1.fuel.toFixed(2);
-    h+='<tr><td>'+(i+1)+'</td><td>'+r.date+'</td><td>'+money(r.amount)+'</td><td>'+(r.liters>0?tf(r.liters,2):'—')+'</td><td>'+price+'</td><td>'+(r.mileage||'—')+'</td><td>'+fu+'</td><td class="l">'+escapeHtml(r.stationName||'—')+'</td><td>'+(r.saved>0?money(r.saved):'—')+'</td></tr>';
-  });
-  h+='<tr class="atot"><td colspan="2">合计</td><td>'+money(fuelAmt)+'</td><td>'+tf(lit,2)+'</td><td colspan="5"></td></tr></table>';
-  h+='<div class="asec">三、其他费用明细</div>';
-  h+='<table><tr><th style="width:26px">序号</th><th style="width:90px">日期</th><th style="width:100px">费用类型</th><th class="l">备注</th><th style="width:90px">金额(元)</th></tr>';
-  if(ex.length===0){h+='<tr><td colspan="5">本月无其他费用</td></tr>';}
-  ex.forEach(function(e,i){
-    h+='<tr><td>'+(i+1)+'</td><td>'+e.date+'</td><td>'+escapeHtml(e.type||'')+'</td><td class="l">'+escapeHtml(e.note||'')+'</td><td>'+money(e.amount)+'</td></tr>';
-  });
-  h+='<tr class="atot"><td colspan="4">合计</td><td>'+money(exAmt)+'</td></tr></table>';
-  h+='<div class="asec">四、本月总支出</div>';
-  h+='<table><tr><th>油费(元)</th><th>其他费用(元)</th><th>合计(元)</th></tr>';
-  h+='<tr><td>'+money(fuelAmt)+'</td><td>'+money(exAmt)+'</td><td>'+money(fuelAmt+exAmt)+'</td></tr></table>';
-  h+='<div class="asign"><span>司机签字：____________________</span><span>审核：____________________</span></div>';
-  return h;
-}
-
-switchView('home');
-
 initApp();
 </script>
 </body>
